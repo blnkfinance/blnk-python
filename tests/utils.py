@@ -9,7 +9,9 @@ import os
 import random
 import time
 
-BASE_URL = "http://localhost:5001/"
+# Live Core base URL; override with BLNK_BASE_URL when running against a
+# remote instance.
+BASE_URL = os.environ.get("BLNK_BASE_URL", "http://localhost:5001/")
 
 # Local Core dev key; override with BLNK_API_KEY when running integration tests.
 BLNK_API_KEY = os.environ.get("BLNK_API_KEY", "blnk-local-dev-secret-change-me")

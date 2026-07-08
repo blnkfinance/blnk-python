@@ -29,7 +29,12 @@ from typing import Any, Dict, Iterable
 import pytest
 
 from blnk_sdk.client import BlnkClientOptions, blnk_init
-from tests.utils import BASE_URL, generate_random_numbers_with_prefix, sleep_seconds
+from tests.utils import (
+    BASE_URL,
+    BLNK_API_KEY,
+    generate_random_numbers_with_prefix,
+    sleep_seconds,
+)
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("BLNK_E2E") != "1",
@@ -82,9 +87,10 @@ def _has_props(data: Dict[str, Any], props: Iterable[str]) -> None:
 
 
 def _make_client():
-    """Each test class builds its own client with a fresh options object and
-    an empty api key."""
-    return blnk_init("", BlnkClientOptions(base_url=BASE_URL))
+    """Each test class builds its own client with a fresh options object,
+    authenticated with the configured API key (empty for unsecured local
+    instances)."""
+    return blnk_init(BLNK_API_KEY, BlnkClientOptions(base_url=BASE_URL))
 
 
 class TestLedgersEndToEndTest:
