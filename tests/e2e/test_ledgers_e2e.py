@@ -129,11 +129,12 @@ class TestLedgersEndToEndTest:
         assert isinstance(response.data, dict)
         _has_props(response.data, ["ledger_id", "name", "created_at"])
 
-    def test_it_should_return_400(self) -> None:
-        """It should return 400"""
+    def test_it_should_reject_an_unknown_ledger_id(self) -> None:
+        """It should reject an unknown ledger id."""
         response = self.client.ledgers.get("123456789")
         assert response, "response is returned"
-        assert response.status == 400
+        # Blnk Core returns 400 on older versions and 404 on newer ones.
+        assert response.status in (400, 404), f"expected 400 or 404, got {response.status}"
 
 
 class TestIdentity:
@@ -234,11 +235,12 @@ class TestLedgerBalances:
         assert isinstance(response.data, dict)
         _has_props(response.data, LEDGER_BALANCE_FIELDS)
 
-    def test_it_should_return_400(self) -> None:
-        """it should return 400"""
+    def test_it_should_reject_an_unknown_balance_id(self) -> None:
+        """it should reject an unknown balance id."""
         response = self.client.ledger_balances.get("123456789")
         assert response, "response is returned"
-        assert response.status == 400
+        # Blnk Core returns 400 on older versions and 404 on newer ones.
+        assert response.status in (400, 404), f"expected 400 or 404, got {response.status}"
 
 
 class TestLedgerBalanceTransactions:
@@ -331,10 +333,11 @@ class TestBalanceMonitors:
         assert isinstance(response.data, list)
 
     def test_it_should_fail_to_get_the_balance_monitor(self) -> None:
-        """It should fail to get the balance monitor"""
+        """It should fail to get the balance monitor."""
         response = self.client.balance_monitor.get("123456789")
         assert response, "response is returned"
-        assert response.status == 400
+        # Blnk Core returns 400 on older versions and 404 on newer ones.
+        assert response.status in (400, 404), f"expected 400 or 404, got {response.status}"
 
     def test_it_should_get_a_balance_monitor(self) -> None:
         """It should get a balance monitor"""
