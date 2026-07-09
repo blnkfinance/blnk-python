@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "blnk-sdk"
+name = "blnk-python"
 version = "1.3.0"
 description = "Python SDK for the Blnk Finance open-source ledger."
 readme = "README.md"
