@@ -12,6 +12,18 @@ metadata, hooks, API keys, and system health.
 
 ## Installation
 
+Install from PyPI:
+
+```sh
+pip install blnk-python
+```
+
+The PyPI distribution name is `blnk-python`. Import the SDK with `from blnk_sdk import ...`.
+This is the first public PyPI release for the Python SDK; earlier docs may reference
+`blnk-sdk`, but that name was never published to PyPI.
+
+Install from source:
+
 ```sh
 pip install .            # from this directory
 ```
