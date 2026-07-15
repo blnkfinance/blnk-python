@@ -64,7 +64,7 @@ class LedgerBalances:
             return handle_error(error, self._logger, self._format_response, "create")
 
     def get(self, id: str, options: Any = None) -> Any:
-        """GET balances/{id}[?from_source=true].
+        """GET balances/{id}[?from_source=true][&with_queued=true].
 
         The `id` is never validated (`get("")` performs `GET balances/`) and
         is NOT URL-encoded.
@@ -76,8 +76,13 @@ class LedgerBalances:
                     return self._format_response(400, error, None)
 
             endpoint = f"balances/{id}"
+            params: list[str] = []
             if options is not None and is_truthy(_option(options, "from_source")):
-                endpoint += "?from_source=true"
+                params.append("from_source=true")
+            if options is not None and is_truthy(_option(options, "with_queued")):
+                params.append("with_queued=true")
+            if params:
+                endpoint += "?" + "&".join(params)
 
             return self._request(endpoint, None, "GET")
         except Exception as error:

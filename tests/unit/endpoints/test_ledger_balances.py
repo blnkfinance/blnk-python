@@ -433,6 +433,51 @@ def test_get_rejects_invalid_from_source() -> None:
     assert response.message == "from_source must be a boolean if provided"
 
 
+def test_get_forwards_with_queued_query_param() -> None:
+    """get forwards with_queued query param"""
+    third_party_request = create_mock_blnk_request(True, None, 200)
+    captured_request = CapturingRequest(third_party_request)
+    ledger_balance = LedgerBalances(captured_request, MOCK_LOGGER, format_response)
+    balance_id = "bln_5ce86029-3c2e-4e2a-aae2-7fb931ca4c4f"
+    ledger_balance.get(balance_id, {"with_queued": True})
+
+    assert captured_request.calls == [
+        (f"balances/{balance_id}?with_queued=true", None, "GET", None)
+    ]
+
+
+def test_get_forwards_from_source_and_with_queued_query_params() -> None:
+    """get forwards from_source and with_queued query params"""
+    third_party_request = create_mock_blnk_request(True, None, 200)
+    captured_request = CapturingRequest(third_party_request)
+    ledger_balance = LedgerBalances(captured_request, MOCK_LOGGER, format_response)
+    balance_id = "bln_5ce86029-3c2e-4e2a-aae2-7fb931ca4c4f"
+    ledger_balance.get(
+        balance_id, {"from_source": True, "with_queued": True}
+    )
+
+    assert captured_request.calls == [
+        (
+            f"balances/{balance_id}?from_source=true&with_queued=true",
+            None,
+            "GET",
+            None,
+        )
+    ]
+
+
+def test_get_rejects_invalid_with_queued() -> None:
+    """get rejects invalid with_queued"""
+    third_party_request = create_mock_blnk_request(True, None, 200)
+    captured_request = CapturingRequest(third_party_request)
+    ledger_balance = LedgerBalances(captured_request, MOCK_LOGGER, format_response)
+    response = ledger_balance.get("bln_123", {"with_queued": "true"})
+
+    assert captured_request.calls == []
+    assert response.status == 400
+    assert response.message == "with_queued must be a boolean if provided"
+
+
 def test_getat_calls_get_balances_id_at() -> None:
     """getAt calls GET /balances/{id}/at"""
     third_party_request = create_mock_blnk_request(True, None, 200)
