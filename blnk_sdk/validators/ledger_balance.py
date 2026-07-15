@@ -140,6 +140,9 @@ def validate_get_balance(data: Any) -> Optional[str]:
     if "from_source" in d and not isinstance(d["from_source"], bool):
         return "from_source must be a boolean if provided"
 
+    if "with_queued" in d and not isinstance(d["with_queued"], bool):
+        return "with_queued must be a boolean if provided"
+
     return None
 
 

@@ -132,6 +132,8 @@ class GetBalanceRequest(DTO):
     # Reconstruct balance from transactions instead of snapshots when True.
     # Loosely typed: any value is accepted (e.g. the string "true").
     from_source: Optional[Any] = None
+    # Include queued credit/debit balances when True.
+    with_queued: Optional[Any] = None
 
 
 @dataclass

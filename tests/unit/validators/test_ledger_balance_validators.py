@@ -173,6 +173,19 @@ def test_get_balance_rejects_non_boolean_from_source() -> None:
     )
 
 
+def test_get_balance_accepts_with_queued_flag() -> None:
+    """ValidateGetBalance > accepts with_queued flag"""
+    assert validate_get_balance({"with_queued": True}) is None
+
+
+def test_get_balance_rejects_non_boolean_with_queued() -> None:
+    """ValidateGetBalance > rejects non-boolean with_queued"""
+    assert (
+        validate_get_balance({"with_queued": "true"})
+        == "with_queued must be a boolean if provided"
+    )
+
+
 # --- ValidateGetBalanceAt ----------------------------------------
 
 
