@@ -551,6 +551,9 @@ def validate_create_transactions(data: Any) -> Optional[str]:
     if "meta_data" in data and not is_valid_meta_data(data["meta_data"]):
         return "meta_data must be a valid object if provided"  # note: no trailing period
 
+    if "dry_run" in data and not isinstance(data["dry_run"], bool):
+        return "dry_run must be a boolean if provided."
+
     # No unknown-field check here — extra fields flow through to the API.
     return None
 
@@ -582,7 +585,17 @@ def validate_update_transactions(data: Any) -> Optional[str]:
     if "skip_queue" in data and not isinstance(data["skip_queue"], bool):
         return "skip_queue must be a boolean if provided."
 
-    allowed_fields = ["status", "amount", "precise_amount", "meta_data", "skip_queue"]
+    if "dry_run" in data and not isinstance(data["dry_run"], bool):
+        return "dry_run must be a boolean if provided."
+
+    allowed_fields = [
+        "status",
+        "amount",
+        "precise_amount",
+        "meta_data",
+        "skip_queue",
+        "dry_run",
+    ]
     for key in data:  # iterates in insertion order
         if key not in allowed_fields:
             return f"Invalid field: {key}"  # note: no trailing period
@@ -598,7 +611,16 @@ def validate_refund_transaction(data: Any) -> Optional[str]:
     if "skip_queue" in data and not isinstance(data["skip_queue"], bool):
         return "skip_queue must be a boolean if provided."
 
-    allowed_fields = ["skip_queue"]
+    if "dry_run" in data and not isinstance(data["dry_run"], bool):
+        return "dry_run must be a boolean if provided."
+
+    if "description" in data and not isinstance(data["description"], str):
+        return "description must be a string if provided."
+
+    if "meta_data" in data and not is_valid_meta_data(data["meta_data"]):
+        return "meta_data must be a valid object if provided"
+
+    allowed_fields = ["skip_queue", "dry_run", "description", "meta_data"]
     for key in data:
         if key not in allowed_fields:
             return f"Invalid field: {key}"
@@ -612,6 +634,9 @@ def validate_bulk_void_inflight(data: Any) -> Optional[str]:
 
     if "skip_queue" in data and not isinstance(data["skip_queue"], bool):
         return "skip_queue must be a boolean if provided."
+
+    if "dry_run" in data and not isinstance(data["dry_run"], bool):
+        return "dry_run must be a boolean if provided."
 
     transaction_ids = data.get("transaction_ids")
     if not isinstance(transaction_ids, list):
@@ -627,7 +652,7 @@ def validate_bulk_void_inflight(data: Any) -> Optional[str]:
         if not isinstance(transaction_id, str) or transaction_id.strip() == "":
             return f"transaction_id is required at index {i}."
 
-    allowed_fields = ["skip_queue", "transaction_ids"]
+    allowed_fields = ["skip_queue", "dry_run", "transaction_ids"]
     for key in data:  # unknown fields run LAST
         if key not in allowed_fields:
             return f"Invalid field: {key}"
@@ -645,6 +670,9 @@ def validate_bulk_commit_inflight(data: Any) -> Optional[str]:
 
     if "skip_queue" in data and not isinstance(data["skip_queue"], bool):
         return "skip_queue must be a boolean if provided."
+
+    if "dry_run" in data and not isinstance(data["dry_run"], bool):
+        return "dry_run must be a boolean if provided."
 
     transactions = data.get("transactions")
     if not isinstance(transactions, list):
@@ -677,7 +705,7 @@ def validate_bulk_commit_inflight(data: Any) -> Optional[str]:
                     f"or number at index {i}."
                 )
 
-    allowed_fields = ["skip_queue", "transactions"]
+    allowed_fields = ["skip_queue", "dry_run", "transactions"]
     for key in data:  # unknown fields run LAST
         if key not in allowed_fields:
             return f"Invalid field: {key}"
@@ -700,6 +728,9 @@ def validate_bulk_transactions(data: Any) -> Optional[str]:
 
     if "skip_queue" in data and not isinstance(data["skip_queue"], bool):
         return "skip_queue must be a boolean if provided."
+
+    if "dry_run" in data and not isinstance(data["dry_run"], bool):
+        return "dry_run must be a boolean if provided."
 
     transactions = data.get("transactions")
     if not isinstance(transactions, list):

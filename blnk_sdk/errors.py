@@ -22,6 +22,21 @@ class BlnkServiceError(RuntimeError):
     """
 
 
+class BlnkErrorCode:
+    """Stable Core ``error_detail.code`` values called out for SDK 1.4.0 /
+    Core 0.15.3. Compare ``response.error.code`` — do not branch on message
+    text.
+
+    See https://docs.blnkfinance.com/advanced/error-codes
+    """
+
+    TXN_INVALID_AMOUNT = "TXN_INVALID_AMOUNT"
+    GEN_CONFLICT = "GEN_CONFLICT"
+    # Request failed validation before processing. On Core 0.15.3 this
+    # includes negative amount/precision and source equal to destination.
+    TXN_VALIDATION_ERROR = "TXN_VALIDATION_ERROR"
+
+
 @dataclass
 class BlnkApiErrorDetail:
     """Structured API error attached to ApiResponse.error."""

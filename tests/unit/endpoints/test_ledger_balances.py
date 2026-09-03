@@ -175,6 +175,57 @@ def test_create_forwards_track_fund_lineage_and_allocation_strategy() -> None:
     assert response.status == 201
 
 
+def test_create_forwards_general_ledger_indicator() -> None:
+    """create forwards indicator when ledger_id is general_ledger_id"""
+    third_party_request = create_mock_blnk_request(True, None, 201)
+    captured_request = CapturingRequest(third_party_request)
+    ledger_balance = LedgerBalances(captured_request, MOCK_LOGGER, format_response)
+
+    data = {
+        "ledger_id": "general_ledger_id",
+        "currency": "USD",
+        "indicator": "@Revenue",
+    }
+
+    response = ledger_balance.create(data)
+
+    assert captured_request.calls == [
+        (
+            "balances",
+            {
+                "ledger_id": "general_ledger_id",
+                "currency": "USD",
+                "indicator": "@Revenue",
+            },
+            "POST",
+            None,
+        )
+    ]
+    assert response.status == 201
+
+
+def test_create_rejects_indicator_on_non_general_ledger() -> None:
+    """create rejects indicator unless ledger_id is general_ledger_id"""
+    third_party_request = create_mock_blnk_request(True)
+    captured_request = CapturingRequest(third_party_request)
+    ledger_balance = LedgerBalances(captured_request, MOCK_LOGGER, format_response)
+
+    response = ledger_balance.create(
+        {
+            "ledger_id": LEDGER_ID,
+            "currency": "USD",
+            "indicator": "@Revenue",
+        }
+    )
+
+    assert captured_request.calls == []
+    assert response.status == 400
+    assert (
+        response.message
+        == "indicator is only valid when ledger_id is general_ledger_id"
+    )
+
+
 def test_create_rejects_invalid_allocation_strategy() -> None:
     """create rejects invalid allocation_strategy"""
     third_party_request = create_mock_blnk_request(True)

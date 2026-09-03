@@ -75,6 +75,22 @@ deposit = blnk.transactions.create({
     "destination": balance.data["balance_id"],
     "allow_overdraft": True,
 })
+
+# Core 0.15.3+: preview without writing (HTTP 200, no transaction_id)
+preview = blnk.transactions.create({
+    "amount": 750,
+    "precision": 100,
+    "currency": "USD",
+    "reference": "ref_001adcfgf",
+    "description": "First deposit",
+    "source": "@WorldUSD",
+    "destination": balance.data["balance_id"],
+    "allow_overdraft": True,
+    "dry_run": True,
+})
+print(preview.status)                 # 200
+print(preview.data["would_apply"])    # True/False
+print(preview.data["balances"])       # current_* / resulting_* projections
 ```
 
 The client is a context manager — `with blnk_init(...) as blnk:` closes the underlying
@@ -120,7 +136,8 @@ SDK methods **never raise** for request or validation failures — they return a
   Blnk Core returns a structured `error_detail` body, its message is used.
 - `data` — the parsed JSON body (`None` on failure or empty body).
 - `error` — a structured `BlnkApiErrorDetail(code, message, details)` when the Core
-  returned a JSON error body.
+  returned a JSON error body. Compare `error.code` to `BlnkErrorCode`
+  (`TXN_VALIDATION_ERROR`, `GEN_CONFLICT`, `TXN_INVALID_AMOUNT`).
 
 Client-side validation runs before any request is sent: an invalid payload returns a
 `400` response immediately and the HTTP layer is never invoked. The only raising paths
@@ -130,12 +147,17 @@ requesting an unregistered service.
 ## Tests
 
 ```sh
-.venv/bin/pytest tests/                # 489 tests: 444 offline unit tests, 45 live-gated
+.venv/bin/pytest tests/                # 482 offline unit tests; live-gated suites skip
 BLNK_E2E=1 .venv/bin/pytest tests/     # also runs integration + e2e against http://localhost:5001
+BLNK_E2E=1 .venv/bin/pytest tests/integration/test_core_0_15_3.py
 ```
 
 Unit tests inject a mock transport and run fully offline. The live suites need a running
-Blnk Core (`docker compose up` in the [blnk](https://github.com/blnkfinance/blnk) repo).
+Blnk Core 0.15.3+ (`docker compose up` in the [blnk](https://github.com/blnkfinance/blnk) repo).
+
+A Postman collection for the same Core 0.15.3 checks lives at
+`postman/blnk-core-0.15.3.collection.json`. Import it and set `base_url` plus
+`api_key` in the collection variables.
 
 ## Project layout
 

@@ -77,6 +77,9 @@ class CreateTransactions(DTO):
     skip_queue: Optional[bool] = None
     atomic: Optional[bool] = None
     allow_overdraft: Optional[bool] = None
+    # Preview the post without writing. Default: False. When True, Core
+    # returns HTTP 200 and a TransactionPreview — not a posted transaction.
+    dry_run: Optional[bool] = None
     meta_data: Optional[Any] = None
 
 
@@ -126,6 +129,8 @@ class UpdateTransactionStatus(DTO):
     precise_amount: Optional[Union[int, float, str]] = None
     meta_data: Optional[Any] = None
     skip_queue: Optional[bool] = None
+    # Preview commit/void without settling the hold. Default: False.
+    dry_run: Optional[bool] = None
 
 
 @dataclass(kw_only=True)
@@ -133,6 +138,12 @@ class RefundTransactionRequest(DTO):
     """Optional body for POST /refund-transaction/{transaction_id}."""
 
     skip_queue: Optional[bool] = None
+    # Replaces the reversal description. Empty/omitted inherits the original.
+    description: Optional[str] = None
+    # Merged onto metadata inherited from the original transaction.
+    meta_data: Optional[Any] = None
+    # Preview the refund without writing. Default: False.
+    dry_run: Optional[bool] = None
 
 
 @dataclass(kw_only=True)
@@ -143,6 +154,9 @@ class BulkTransactions(DTO):
     inflight: Optional[bool] = None
     run_async: Optional[bool] = None
     skip_queue: Optional[bool] = None
+    # Preview the batch without writing. Default: False. run_async is
+    # ignored on a bulk dry run.
+    dry_run: Optional[bool] = None
     transactions: List[CreateTransactions] = field(default_factory=list)
 
 
@@ -170,6 +184,8 @@ class BulkCommitInflightRequest(DTO):
     """Request body for POST /transactions/inflight/bulk/commit."""
 
     skip_queue: Optional[bool] = None
+    # Preview the batch without committing. Default: False.
+    dry_run: Optional[bool] = None
     transactions: List[BulkCommitInflightItem] = field(default_factory=list)
 
 
@@ -197,6 +213,8 @@ class BulkVoidInflightRequest(DTO):
     """Request body for POST /transactions/inflight/bulk/void."""
 
     skip_queue: Optional[bool] = None
+    # Preview the batch without voiding. Default: False.
+    dry_run: Optional[bool] = None
     transaction_ids: List[str] = field(default_factory=list)
 
 
@@ -242,3 +260,138 @@ class RecoverQueueResponse(DTO):
 
     recovered: Union[int, float]
     threshold: str  # e.g. "5m0s"
+
+
+@dataclass(kw_only=True)
+class PreviewRejection(DTO):
+    """Why a dry-run projection would not apply."""
+
+    code: str
+    reason: str
+    message: str
+
+
+@dataclass(kw_only=True)
+class BalanceProjection(DTO):
+    """One balance's current and projected state in a dry-run.
+
+    Amounts are minor-unit strings.
+    """
+
+    balance_id: str
+    role: str
+    currency: str
+    virtual: Optional[bool] = None
+    current_balance: str
+    current_available: Optional[str] = None
+    current_credit_balance: Optional[str] = None
+    current_debit_balance: Optional[str] = None
+    current_inflight_debit_balance: Optional[str] = None
+    current_inflight_credit_balance: Optional[str] = None
+    resulting_balance: str
+    resulting_available: Optional[str] = None
+    resulting_credit_balance: Optional[str] = None
+    resulting_debit_balance: Optional[str] = None
+    resulting_inflight_debit_balance: Optional[str] = None
+    resulting_inflight_credit_balance: Optional[str] = None
+
+
+@dataclass(kw_only=True)
+class LegProjection(DTO):
+    """One split leg in a multi-source or multi-destination dry-run."""
+
+    identifier: str
+    role: str
+    precise_amount: str
+    amount: Union[int, float]
+
+
+def _as_nested_dto(cls: Any, value: Any) -> Any:
+    if isinstance(value, dict):
+        return cls.from_dict(value)
+    return value
+
+
+def _as_nested_dto_list(cls: Any, values: Any) -> Any:
+    if not isinstance(values, list):
+        return values
+    return [_as_nested_dto(cls, item) for item in values]
+
+
+@dataclass(kw_only=True)
+class TransactionPreview(DTO):
+    """Response from a dry-run create, refund, or inflight update (HTTP 200).
+
+    This is a projection, not a recorded transaction — there is no
+    ``transaction_id`` and ``reference`` is not consumed.
+
+    See https://docs.blnkfinance.com/transactions/dry-run
+    """
+
+    dry_run: bool
+    would_apply: bool
+    rejection: Optional[PreviewRejection] = None
+    operation: Optional[str] = None  # "commit" | "void" on inflight previews
+    status: Optional[StatusType] = None
+    reference: Optional[str] = None
+    currency: str
+    amount: Union[int, float]
+    precise_amount: str
+    precision: Union[int, float]
+    balances: List[BalanceProjection] = field(default_factory=list)
+    legs: Optional[List[LegProjection]] = None
+    notes: Optional[List[str]] = None
+
+    @classmethod
+    def from_dict(cls, data: Any):
+        obj = super().from_dict(data)
+        obj.rejection = _as_nested_dto(PreviewRejection, obj.rejection)
+        obj.balances = _as_nested_dto_list(BalanceProjection, obj.balances) or []
+        obj.legs = _as_nested_dto_list(LegProjection, obj.legs)
+        return obj
+
+
+@dataclass(kw_only=True)
+class BulkTransactionPreview(DTO):
+    """Response from a dry-run bulk create / bulk inflight (HTTP 200).
+
+    See https://docs.blnkfinance.com/transactions/dry-run
+    """
+
+    dry_run: bool
+    would_apply: bool
+    cumulative: bool
+    atomic: Optional[bool] = None
+    results: List[TransactionPreview] = field(default_factory=list)
+    balances: Optional[List[BalanceProjection]] = None
+    notes: Optional[List[str]] = None
+
+    @classmethod
+    def from_dict(cls, data: Any):
+        obj = super().from_dict(data)
+        obj.results = _as_nested_dto_list(TransactionPreview, obj.results) or []
+        obj.balances = _as_nested_dto_list(BalanceProjection, obj.balances)
+        return obj
+
+
+def is_transaction_preview(data: Any) -> bool:
+    """True when a response body is a single-transaction dry-run preview."""
+    if isinstance(data, TransactionPreview):
+        return True
+    return (
+        isinstance(data, dict)
+        and data.get("dry_run") is True
+        and "would_apply" in data
+        and "results" not in data
+    )
+
+
+def is_bulk_transaction_preview(data: Any) -> bool:
+    """True when a response body is a bulk dry-run preview."""
+    if isinstance(data, BulkTransactionPreview):
+        return True
+    return (
+        isinstance(data, dict)
+        and data.get("dry_run") is True
+        and isinstance(data.get("results"), list)
+    )

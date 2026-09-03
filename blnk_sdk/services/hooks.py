@@ -63,10 +63,14 @@ class Hooks:
             return handle_error(error, self._logger, self._format_response, "create")
 
     def list(self, options: Any = None) -> Any:
-        """GET hooks, or hooks?type={type} when a type is provided. A type
-        key explicitly set to None fails validation before the endpoint is
-        built, so the `is not None` check only ever distinguishes absent
-        from present; the enum value is interpolated RAW (no encoding)."""
+        """GET hooks, or hooks?type={type} when a type is provided.
+
+        Omitting ``type`` (``hooks.list()``) lists PRE and POST hooks.
+        A type key explicitly set to None fails validation before the
+        endpoint is built, so the `is not None` check only ever
+        distinguishes absent from present; the enum value is interpolated
+        RAW (no encoding).
+        """
         try:
             validator_response = validate_list_hooks_options(options)
             if validator_response:

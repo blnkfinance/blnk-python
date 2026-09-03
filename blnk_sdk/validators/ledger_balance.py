@@ -63,6 +63,17 @@ def validate_create_ledger_balance(data: Any) -> Optional[str]:
     if "identity_id" in d and not is_valid_string(d["identity_id"]):
         return "identity_id must be a valid string if provided"
 
+    if "indicator" in d:
+        indicator = d["indicator"]
+        if not is_valid_string(indicator) or indicator.strip() == "":
+            return "indicator must be a non-empty string if provided"
+        if not indicator.startswith("@"):
+            return "indicator must start with @"
+        if any(ch.isspace() for ch in indicator):
+            return "indicator must not contain spaces"
+        if d.get("ledger_id") != "general_ledger_id":
+            return "indicator is only valid when ledger_id is general_ledger_id"
+
     # currency is only checked to be a string — any string passes, even
     # though the message names 'USD' and 'NGN'; callers depend on the exact
     # message text.
