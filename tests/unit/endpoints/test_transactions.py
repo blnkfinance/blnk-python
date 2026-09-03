@@ -167,6 +167,24 @@ def test_rejects_invalid_atomic_on_create():
     assert response.message == "atomic must be a boolean if provided."
 
 
+def test_creates_a_transaction_with_dry_run():
+    """Creates a transaction > forwards dry_run on create"""
+    service, captured = _make(200)
+    data = {
+        "amount": 10000,
+        "currency": "USD",
+        "description": "Dry-run preview",
+        "precision": 100,
+        "reference": "dry_run_ref_001",
+        "source": "@FundingPool",
+        "destination": "bln_recipient",
+        "dry_run": True,
+    }
+    transaction = service.create(data)
+    assert _args(captured) == [("transactions", data, "POST")]
+    assert transaction.status == 200
+
+
 def test_returns_core_create_response_fields():
     """Creates a transaction > returns Core create response fields"""
     core_response = core_create_transaction_reference_response
@@ -354,6 +372,15 @@ def test_updatestatus_rejects_invalid_skip_queue():
     assert "skip_queue must be a boolean if provided" in transaction.message
 
 
+def test_updatestatus_forwards_dry_run_on_request():
+    """Updates a transaction > updateStatus forwards dry_run on request"""
+    service, captured = _make(200)
+    data = {"status": "commit", "dry_run": True}
+    transaction = service.update_status("1234", data)
+    assert _args(captured) == [("transactions/inflight/1234", data, "PUT")]
+    assert transaction.status == 200
+
+
 # ---------------------------------------------------------------------------
 # Block: GET transaction by id (mock success=True, status=200)
 # ---------------------------------------------------------------------------
@@ -500,6 +527,21 @@ def test_refund_rejects_invalid_skip_queue():
     assert _args(captured) == []
     assert refund_response.status == 400
     assert refund_response.message == "skip_queue must be a boolean if provided."
+
+
+def test_refund_forwards_description_meta_data_and_dry_run():
+    """Refunds a transaction > refund forwards description, meta_data, and dry_run"""
+    service, captured = _make(200)
+    options = {
+        "description": "Card refund",
+        "meta_data": {"reason": "chargeback"},
+        "dry_run": True,
+    }
+    refund_response = service.refund("txn_refund_1234", options)
+    assert _args(captured) == [
+        ("refund-transaction/txn_refund_1234", options, "POST")
+    ]
+    assert refund_response.status == 200
 
 
 # ---------------------------------------------------------------------------
@@ -775,6 +817,28 @@ def test_should_handle_bulk_transactions_with_multiple_sources():
     assert bulk_response.status == 201
 
 
+def test_createbulk_forwards_dry_run_on_bulk_request():
+    """Creates bulk transactions > createBulk forwards dry_run on bulk request"""
+    service, captured = _make(200)
+    data = {
+        "dry_run": True,
+        "transactions": [
+            {
+                "amount": 100,
+                "currency": "USD",
+                "description": "Bulk dry-run",
+                "precision": 100,
+                "reference": "bulk_dry_001",
+                "source": "@FundingPool",
+                "destination": "@Recipient",
+            }
+        ],
+    }
+    response = service.create_bulk(data)
+    assert _args(captured) == [("transactions/bulk", data, "POST")]
+    assert response.status == 200
+
+
 def test_createbulk_forwards_skip_queue_on_bulk_request():
     """Creates bulk transactions > createBulk forwards skip_queue on bulk request"""
     service, captured = _make(201)
@@ -886,6 +950,20 @@ def test_bulkcommitinflight_rejects_missing_transaction_id():
     assert response.message == "transaction_id is required at index 0."
 
 
+def test_bulkcommitinflight_forwards_dry_run_on_request():
+    """bulkCommitInflight > bulkCommitInflight forwards dry_run on request"""
+    service, captured = _make(200)
+    data = {
+        "dry_run": True,
+        "transactions": [
+            {"transaction_id": "txn_11111111-1111-4111-8111-111111111111"},
+        ],
+    }
+    response = service.bulk_commit_inflight(data)
+    assert _args(captured) == [("transactions/inflight/bulk/commit", data, "POST")]
+    assert response.status == 200
+
+
 def test_bulkcommitinflight_forwards_skip_queue_on_request():
     """bulkCommitInflight > bulkCommitInflight forwards skip_queue on request"""
     service, captured = _make(200)
@@ -947,6 +1025,18 @@ def test_bulkvoidinflight_rejects_missing_transaction_id():
     assert _args(captured) == []
     assert response.status == 400
     assert response.message == "transaction_id is required at index 0."
+
+
+def test_bulkvoidinflight_forwards_dry_run_on_request():
+    """bulkVoidInflight > bulkVoidInflight forwards dry_run on request"""
+    service, captured = _make(200)
+    data = {
+        "dry_run": True,
+        "transaction_ids": ["txn_11111111-1111-4111-8111-111111111111"],
+    }
+    response = service.bulk_void_inflight(data)
+    assert _args(captured) == [("transactions/inflight/bulk/void", data, "POST")]
+    assert response.status == 200
 
 
 def test_bulkvoidinflight_forwards_skip_queue_on_request():

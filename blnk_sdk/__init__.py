@@ -9,6 +9,7 @@ from .constants import (
 )
 from .errors import (
     BlnkApiErrorDetail,
+    BlnkErrorCode,
     BlnkServiceError,
     BlnkTimeoutError,
     parse_blnk_api_error_body,
@@ -18,12 +19,13 @@ from .logger import CustomLogger, handle_error
 from .multipart import MultipartBody, is_multipart_body
 from .transport import RequestsTransport, TransportRequest
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 
 __all__ = [
     "ApiResponse",
     "Blnk",
     "BlnkApiErrorDetail",
+    "BlnkErrorCode",
     "BlnkClientOptions",
     "BlnkServiceError",
     "BlnkTimeoutError",

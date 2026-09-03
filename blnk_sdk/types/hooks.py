@@ -41,7 +41,12 @@ UpdateHookData = CreateHookData
 
 @dataclass
 class ListHooksOptions(DTO):
-    """Options for `GET hooks` (optional `?type=` filter)."""
+    """Options for `GET hooks` (optional `?type=` filter).
+
+    Omit ``type`` (or call ``hooks.list()`` with no options) to list PRE
+    and POST hooks together. Core 0.15.3+ returns both when the filter is
+    absent.
+    """
 
     type: Optional[HookType] = None
 

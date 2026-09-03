@@ -54,7 +54,13 @@ class LedgerBalances:
         self._format_response = format_response
 
     def create(self, data: Any) -> Any:
-        """POST balances — body forwarded unmodified."""
+        """POST balances — body forwarded unmodified.
+
+        Optional ``indicator`` (must start with ``@``, no whitespace) creates
+        an internal General Ledger balance when ``ledger_id`` is
+        ``general_ledger_id``. Duplicate indicator + currency returns 409 /
+        GEN_CONFLICT.
+        """
         try:
             error = validate_create_ledger_balance(data)
             if error:

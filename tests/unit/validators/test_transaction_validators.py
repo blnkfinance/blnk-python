@@ -384,6 +384,33 @@ class TestCreateTransactionRequestFields:
 
         assert validate_create_transactions(data) is None
 
+    def test_allows_dry_run_on_create_payloads(self):
+        """allows dry_run on create payloads"""
+        data = {
+            **BASE_FIELDS,
+            "amount": 1000,
+            "source": "@FundingPool",
+            "destination": "@Recipient",
+            "dry_run": True,
+        }
+
+        assert validate_create_transactions(data) is None
+
+    def test_rejects_invalid_dry_run_on_create_payloads(self):
+        """rejects invalid dry_run on create payloads"""
+        data = {
+            **BASE_FIELDS,
+            "amount": 1000,
+            "source": "@FundingPool",
+            "destination": "@Recipient",
+            "dry_run": "true",
+        }
+
+        assert (
+            validate_create_transactions(data)
+            == "dry_run must be a boolean if provided."
+        )
+
     def test_allows_effective_date_as_an_iso_string(self):
         """allows effective_date as an ISO string"""
         data = {
@@ -742,6 +769,41 @@ class TestBulkTransactionRequestFields:
 
         assert validate_bulk_transactions(data) is None
 
+    def test_allows_dry_run_on_bulk_payloads(self):
+        """allows dry_run on bulk payloads"""
+        data = {
+            "dry_run": True,
+            "transactions": [
+                {
+                    **BASE_FIELDS,
+                    "amount": 100,
+                    "reference": "bulk_dry_1",
+                    "source": "@FundingPool",
+                    "destination": "@Recipient",
+                }
+            ],
+        }
+        assert validate_bulk_transactions(data) is None
+
+    def test_rejects_invalid_dry_run_on_bulk_payloads(self):
+        """rejects invalid dry_run on bulk payloads"""
+        data = {
+            "dry_run": "true",
+            "transactions": [
+                {
+                    **BASE_FIELDS,
+                    "amount": 100,
+                    "reference": "bulk_dry_bad",
+                    "source": "@FundingPool",
+                    "destination": "@Recipient",
+                }
+            ],
+        }
+        assert (
+            validate_bulk_transactions(data)
+            == "dry_run must be a boolean if provided."
+        )
+
     def test_rejects_invalid_skip_queue_on_bulk_payloads(self):
         """rejects invalid skip_queue on bulk payloads"""
         data = {
@@ -840,6 +902,27 @@ class TestUpdateStatusPreciseAmountOnPartialCommit:
 
         assert validate_update_transactions(data) is None
 
+    def test_allows_dry_run_on_update_payloads(self):
+        """allows dry_run on update payloads"""
+        data = {
+            "status": "commit",
+            "dry_run": True,
+        }
+
+        assert validate_update_transactions(data) is None
+
+    def test_rejects_invalid_dry_run_on_update_payloads(self):
+        """rejects invalid dry_run on update payloads"""
+        data = {
+            "status": "commit",
+            "dry_run": "true",
+        }
+
+        assert (
+            validate_update_transactions(data)
+            == "dry_run must be a boolean if provided."
+        )
+
     def test_rejects_invalid_skip_queue_on_update_payloads(self):
         """rejects invalid skip_queue on update payloads"""
         data = {
@@ -882,6 +965,37 @@ class TestRefundTransactionRequestFields:
         }
 
         assert validate_refund_transaction(data) == "Invalid field: amount"
+
+    def test_allows_description_meta_data_and_dry_run_on_refund(self):
+        """allows description, meta_data, and dry_run on refund payloads"""
+        data = {
+            "skip_queue": True,
+            "description": "Card refund",
+            "meta_data": {"reason": "chargeback"},
+            "dry_run": True,
+        }
+        assert validate_refund_transaction(data) is None
+
+    def test_rejects_invalid_description_on_refund(self):
+        """rejects invalid description on refund payloads"""
+        assert (
+            validate_refund_transaction({"description": 12})
+            == "description must be a string if provided."
+        )
+
+    def test_rejects_invalid_meta_data_on_refund(self):
+        """rejects invalid meta_data on refund payloads"""
+        assert (
+            validate_refund_transaction({"meta_data": "not-an-object"})
+            == "meta_data must be a valid object if provided"
+        )
+
+    def test_rejects_invalid_dry_run_on_refund(self):
+        """rejects invalid dry_run on refund payloads"""
+        assert (
+            validate_refund_transaction({"dry_run": "true"})
+            == "dry_run must be a boolean if provided."
+        )
 
 
 class TestBulkCommitInflightValidation:
@@ -962,6 +1076,31 @@ class TestBulkCommitInflightValidation:
             == "skip_queue must be a boolean if provided."
         )
 
+    def test_allows_dry_run_on_bulk_commit_payloads(self):
+        """allows dry_run on bulk commit payloads"""
+        data = {
+            "dry_run": True,
+            "transactions": [
+                {"transaction_id": "txn_11111111-1111-4111-8111-111111111111"}
+            ],
+        }
+
+        assert validate_bulk_commit_inflight(data) is None
+
+    def test_rejects_invalid_dry_run_on_bulk_commit_payloads(self):
+        """rejects invalid dry_run on bulk commit payloads"""
+        data = {
+            "dry_run": "true",
+            "transactions": [
+                {"transaction_id": "txn_11111111-1111-4111-8111-111111111111"}
+            ],
+        }
+
+        assert (
+            validate_bulk_commit_inflight(data)
+            == "dry_run must be a boolean if provided."
+        )
+
 
 class TestBulkVoidInflightValidation:
     """bulkVoidInflight validation"""
@@ -1019,6 +1158,27 @@ class TestBulkVoidInflightValidation:
         assert (
             validate_bulk_void_inflight(data)
             == "skip_queue must be a boolean if provided."
+        )
+
+    def test_allows_dry_run_on_bulk_void_payloads(self):
+        """allows dry_run on bulk void payloads"""
+        data = {
+            "dry_run": True,
+            "transaction_ids": ["txn_11111111-1111-4111-8111-111111111111"],
+        }
+
+        assert validate_bulk_void_inflight(data) is None
+
+    def test_rejects_invalid_dry_run_on_bulk_void_payloads(self):
+        """rejects invalid dry_run on bulk void payloads"""
+        data = {
+            "dry_run": "true",
+            "transaction_ids": ["txn_11111111-1111-4111-8111-111111111111"],
+        }
+
+        assert (
+            validate_bulk_void_inflight(data)
+            == "dry_run must be a boolean if provided."
         )
 
 

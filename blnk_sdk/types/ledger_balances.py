@@ -26,6 +26,9 @@ class CreateLedgerBalance(DTO):
     ledger_id: str
     identity_id: Optional[str] = None
     currency: str
+    # Internal General Ledger indicator (must start with @, no whitespace).
+    # Only valid when ledger_id is "general_ledger_id".
+    indicator: Optional[str] = None
     # Enables fund lineage tracking. Requires identity_id.
     track_fund_lineage: Optional[bool] = None
     # How tagged provider funds are allocated when spending. Defaults to FIFO.

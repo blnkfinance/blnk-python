@@ -137,6 +137,76 @@ def test_create_ledger_balance_rejects_non_boolean_track_fund_lineage() -> None:
     )
 
 
+def test_create_ledger_balance_accepts_general_ledger_indicator() -> None:
+    """ValidateCreateLedgerBalance > accepts indicator on general_ledger_id"""
+    assert (
+        validate_create_ledger_balance(
+            {
+                "ledger_id": "general_ledger_id",
+                "currency": "USD",
+                "indicator": "@Revenue",
+            }
+        )
+        is None
+    )
+
+
+def test_create_ledger_balance_rejects_indicator_without_at() -> None:
+    """ValidateCreateLedgerBalance > rejects indicator that does not start with @"""
+    assert (
+        validate_create_ledger_balance(
+            {
+                "ledger_id": "general_ledger_id",
+                "currency": "USD",
+                "indicator": "Revenue",
+            }
+        )
+        == "indicator must start with @"
+    )
+
+
+def test_create_ledger_balance_rejects_indicator_with_spaces() -> None:
+    """ValidateCreateLedgerBalance > rejects indicator with spaces"""
+    assert (
+        validate_create_ledger_balance(
+            {
+                "ledger_id": "general_ledger_id",
+                "currency": "USD",
+                "indicator": "@Rev enue",
+            }
+        )
+        == "indicator must not contain spaces"
+    )
+
+
+def test_create_ledger_balance_rejects_indicator_on_non_gl_ledger() -> None:
+    """ValidateCreateLedgerBalance > rejects indicator unless ledger_id is general_ledger_id"""
+    assert (
+        validate_create_ledger_balance(
+            {
+                "ledger_id": "ldg_123",
+                "currency": "USD",
+                "indicator": "@Revenue",
+            }
+        )
+        == "indicator is only valid when ledger_id is general_ledger_id"
+    )
+
+
+def test_create_ledger_balance_rejects_empty_indicator() -> None:
+    """ValidateCreateLedgerBalance > rejects empty indicator"""
+    assert (
+        validate_create_ledger_balance(
+            {
+                "ledger_id": "general_ledger_id",
+                "currency": "USD",
+                "indicator": "",
+            }
+        )
+        == "indicator must be a non-empty string if provided"
+    )
+
+
 def test_create_ledger_balance_rejects_invalid_allocation_strategy() -> None:
     """ValidateCreateLedgerBalance lineage fields > rejects invalid
     allocation_strategy"""

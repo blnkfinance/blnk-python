@@ -51,7 +51,11 @@ class Transactions:
         self._format_response = format_response
 
     def create(self, data: Any) -> Any:
-        """POST transactions — body is serialize_create_transaction(data)."""
+        """POST transactions — body is serialize_create_transaction(data).
+
+        Set ``dry_run=True`` to preview without writing (HTTP 200,
+        TransactionPreview). ``dry_run`` takes precedence over ``skip_queue``.
+        """
         try:
             view = _dict_view(data)
             validator_response = validate_create_transactions(view)
@@ -66,7 +70,10 @@ class Transactions:
 
     def update_status(self, id: str, update: Any) -> Any:
         """PUT transactions/inflight/{id} — body sent as-is; the id is never
-        validated nor URL-encoded."""
+        validated nor URL-encoded.
+
+        Set ``dry_run=True`` to preview commit/void without settling the hold.
+        """
         try:
             view = _dict_view(update)
             validator_response = validate_update_transactions(view)
@@ -80,7 +87,12 @@ class Transactions:
 
     def refund(self, id: str, options: Optional[Any] = None) -> Any:
         """POST refund-transaction/{id} — optional body (None when no options
-        are given); the id is never validated nor URL-encoded."""
+        are given); the id is never validated nor URL-encoded.
+
+        Options: ``skip_queue``, ``description``, ``meta_data``, ``dry_run``.
+        Empty description inherits the original; metadata is merged onto the
+        inherited copy. ``dry_run=True`` previews without writing.
+        """
         try:
             body = None
             if options is not None:
@@ -160,7 +172,10 @@ class Transactions:
             )
 
     def bulk_commit_inflight(self, data: Any) -> Any:
-        """POST transactions/inflight/bulk/commit — body sent as-is."""
+        """POST transactions/inflight/bulk/commit — body sent as-is.
+
+        Set ``dry_run=True`` to preview without committing (holds stay INFLIGHT).
+        """
         try:
             view = _dict_view(data)
             validator_response = validate_bulk_commit_inflight(view)
@@ -176,7 +191,10 @@ class Transactions:
             )
 
     def bulk_void_inflight(self, data: Any) -> Any:
-        """POST transactions/inflight/bulk/void — body sent as-is."""
+        """POST transactions/inflight/bulk/void — body sent as-is.
+
+        Set ``dry_run=True`` to preview without voiding (holds stay INFLIGHT).
+        """
         try:
             view = _dict_view(data)
             validator_response = validate_bulk_void_inflight(view)
@@ -191,7 +209,12 @@ class Transactions:
 
     def create_bulk(self, data: Any) -> Any:
         """POST transactions/bulk — each item runs through
-        serialize_create_transaction; top-level flags pass through."""
+        serialize_create_transaction; top-level flags pass through.
+
+        Set ``dry_run=True`` to preview the batch (HTTP 200,
+        BulkTransactionPreview). ``run_async`` is ignored on a dry run;
+        ``skip_queue`` still selects cumulative vs independent projection.
+        """
         try:
             view = _dict_view(data)
             validator_response = validate_bulk_transactions(view)
