@@ -166,6 +166,8 @@ def test_core_0_15_3_sdk_patch() -> None:
     )
     assert refunded.status == 201, f"refund: {refunded.message}"
     assert (refunded.data or {}).get("description") == "SDK refund narration"
+    refund_meta = (refunded.data or {}).get("meta_data") or {}
+    assert refund_meta.get("channel") == "sdk-test"
 
     hold = CLIENT.transactions.create(
         {
@@ -218,13 +220,49 @@ def test_core_0_15_3_sdk_patch() -> None:
         }
     )
     assert void_preview.status == 200, f"bulk void dry-run: {void_preview.message}"
-    assert (void_preview.data or {}).get("dry_run") is True
+    assert is_bulk_transaction_preview(void_preview.data)
+    typed_void = BulkTransactionPreview.from_dict(void_preview.data)
+    assert typed_void.dry_run is True
+    assert typed_void.would_apply is True
+    if typed_void.results:
+        assert typed_void.results[0].operation == "void"
 
     after_void_preview = CLIENT.transactions.get(hold_id)
     assert (after_void_preview.data or {}).get("status") == "INFLIGHT"
 
-    hooks = CLIENT.hooks.list()
-    assert hooks.status in (200, 403), f"hooks list: {hooks.status}"
+    hook_ids: list[str] = []
+    for hook_type in ("PRE_TRANSACTION", "POST_TRANSACTION"):
+        created_hook = CLIENT.hooks.create(
+            {
+                "name": f"sdk-{hook_type.lower()}-{int(time.time() * 1000)}",
+                "url": "https://example.com/blnk-sdk-hook",
+                "type": hook_type,
+                "active": False,
+                "timeout": 5,
+                "retry_count": 0,
+            }
+        )
+        if created_hook.status in (200, 201) and (created_hook.data or {}).get("id"):
+            hook_ids.append(created_hook.data["id"])
+
+    try:
+        hooks = CLIENT.hooks.list()
+        assert hooks.status in (200, 403), f"hooks list: {hooks.status}"
+        if hooks.status == 200:
+            listed = hooks.data if isinstance(hooks.data, list) else []
+            listed_types = {
+                item.get("type") for item in listed if isinstance(item, dict)
+            }
+            if hook_ids:
+                listed_ids = {
+                    item.get("id") for item in listed if isinstance(item, dict)
+                }
+                assert set(hook_ids) <= listed_ids
+                assert "PRE_TRANSACTION" in listed_types
+                assert "POST_TRANSACTION" in listed_types
+    finally:
+        for hook_id in hook_ids:
+            CLIENT.hooks.delete(hook_id)
 
     negative = CLIENT.transactions.create(
         {
@@ -258,7 +296,7 @@ def test_core_0_15_3_sdk_patch() -> None:
     )
     assert same_balance.status != 201
     assert same_balance.error is not None
-    assert same_balance.error.code
+    assert same_balance.error.code == BlnkErrorCode.TXN_VALIDATION_ERROR
 
     duplicate = CLIENT.ledger_balances.create(
         {
