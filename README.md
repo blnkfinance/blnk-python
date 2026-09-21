@@ -136,8 +136,20 @@ SDK methods **never raise** for request or validation failures — they return a
   Blnk Core returns a structured `error_detail` body, its message is used.
 - `data` — the parsed JSON body (`None` on failure or empty body).
 - `error` — a structured `BlnkApiErrorDetail(code, message, details)` when the Core
-  returned a JSON error body. Compare `error.code` to `BlnkErrorCode`
-  (`TXN_VALIDATION_ERROR`, `GEN_CONFLICT`, `TXN_INVALID_AMOUNT`).
+  returned a JSON error body.
+
+Compare `error.code` against the constants in `BlnkErrorCode`, which mirror the
+full Core 0.15.4 catalogue (`TXN_ALREADY_REFUNDED`, `BAL_NOT_FOUND`,
+`TXN_INSUFFICIENT_FUNDS`, `TXN_DUPLICATE_REFERENCE`, `LGR_NOT_FOUND`, and so on):
+
+```python
+from blnk_sdk import BlnkErrorCode
+
+refund = blnk.transactions.refund(transaction_id)
+if refund.error and refund.error.code == BlnkErrorCode.TXN_ALREADY_REFUNDED:
+    # 409: already refunded, or this id is itself a refund — nothing to do
+    pass
+```
 
 Client-side validation runs before any request is sent: an invalid payload returns a
 `400` response immediately and the HTTP layer is never invoked. The only raising paths
