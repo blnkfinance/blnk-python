@@ -18,7 +18,7 @@ Wire conventions:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional, Union
 
 from .base import DTO
@@ -66,6 +66,57 @@ class SearchRequestParams(SearchParams):
     """Request params echoed by Typesense (may include `collection_name`)."""
 
     collection_name: Optional[str] = None
+
+
+@dataclass
+class MultiSearchCollectionParams(DTO):
+    """One entry in a `POST multi-search` body: a normal search plus
+    `collection`. Optional fields are omitted when None."""
+
+    collection: str
+    q: str
+    query_by: Optional[str] = None
+    filter_by: Optional[str] = None
+    sort_by: Optional[str] = None
+    page: Optional[Union[int, float]] = None
+    per_page: Optional[Union[int, float]] = None
+
+
+@dataclass
+class MultiSearchParams(DTO):
+    """Request body for `POST multi-search`: several single-collection
+    searches in one round trip. Wire shape is Typesense's
+    `{"searches":[{"collection":..., "q":..., ...}]}`; results come back in
+    the same order. `add()` appends an entry the same way Java's builder
+    does; a plain dict with a `searches` list is also accepted by
+    `Search.multi_search`."""
+
+    searches: List[Any] = field(default_factory=list)
+
+    def add(self, collection: str, params: Any = None) -> "MultiSearchParams":
+        """Appends one search against `collection`; `params` fields are
+        copied in beside it (dict or `SearchParams.to_dict()`).
+
+        `params` must not include `collection`. That key comes only from
+        this method's first argument, so a nested value cannot silently
+        retarget the search.
+        """
+        entry: Dict[str, Any] = {"collection": collection}
+        if params is not None:
+            if isinstance(params, dict):
+                serialized = params
+            else:
+                to_dict = getattr(params, "to_dict", None)
+                serialized = to_dict() if callable(to_dict) else params
+            if isinstance(serialized, dict):
+                if "collection" in serialized:
+                    raise ValueError(
+                        "params must not include 'collection'; pass it as "
+                        "the first argument to add()"
+                    )
+                entry.update(serialized)
+        self.searches.append(entry)
+        return self
 
 
 @dataclass(kw_only=True)

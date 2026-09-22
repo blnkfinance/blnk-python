@@ -92,6 +92,39 @@ def validate_search_collection(service: Any) -> Optional[str]:
     return None
 
 
+def validate_multi_search_params(data: Any) -> Optional[str]:
+    """Validates a multi-search body: `searches` must be a non-empty list,
+    and each entry needs a valid `collection` plus params that pass
+    `validate_search_params`. Messages are prefixed `searches[i]`."""
+    data = _dict_view(data)
+
+    if not is_truthy(data) or not is_valid_meta_data(data):
+        return "Multi-search params must be a valid object"
+
+    searches = data.get("searches") if isinstance(data, dict) else None
+    if not isinstance(searches, list) or len(searches) == 0:
+        return "searches must be a non-empty array"
+
+    for index in range(len(searches)):
+        raw = _dict_view(searches[index])
+        if not is_truthy(raw) or not is_valid_meta_data(raw) or not isinstance(raw, dict):
+            return f"searches[{index}] must be a valid object"
+
+        entry = dict(raw)
+        collection = entry.pop("collection", None)
+        if not isinstance(collection, str) or validate_search_collection(collection) is not None:
+            return (
+                f"searches[{index}].collection must be ledgers, transactions, "
+                "balances, or identities"
+            )
+
+        params_error = validate_search_params(entry)
+        if params_error:
+            return f"searches[{index}]: {params_error}"
+
+    return None
+
+
 def validate_search_params(data: Any) -> Optional[str]:
     """Validates search parameters.
 
