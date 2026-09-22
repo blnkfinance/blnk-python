@@ -16,11 +16,20 @@ from .base import DTO
 _LIST_QUERY_KEYS = ("limit", "offset")
 
 
+def unknown_list_option_keys(data: Any) -> list[str]:
+    """Keys that are not `limit` or `offset`, in insertion order."""
+    if not isinstance(data, dict):
+        return []
+    return [key for key in data if key not in _LIST_QUERY_KEYS]
+
+
 def list_options_query_string(data: Any) -> str:
     """`?limit=20&offset=40` in dict insertion order, or `""` when empty.
 
-    Only `limit` and `offset` are forwarded. Values are interpolated as-is
-    (no URL-encoding), matching the Java SDK's ListOptions.toQueryString.
+    Only `limit` and `offset` are forwarded. Unknown keys are rejected by
+    `validate_list_options` before this runs on the public list paths.
+    Values are interpolated as-is (no URL-encoding), matching the Java
+    SDK's ListOptions.toQueryString.
     """
     if not isinstance(data, dict):
         return ""

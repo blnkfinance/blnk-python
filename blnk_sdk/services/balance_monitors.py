@@ -70,14 +70,16 @@ class BalanceMonitor:
         """GET balance-monitors/balances/{balance_id}.
 
         Distinct from `list()`, which still returns every monitor. The
-        balance_id is interpolated raw (no URL-encoding). Empty or
-        whitespace-only ids return 400 without a request.
+        balance_id is percent-encoded so reserved characters cannot alter
+        the path. Empty or whitespace-only ids return 400 without a request.
         """
         try:
             if not is_valid_string(balance_id) or balance_id.strip() == "":
                 return self._format_response(400, "balance id is required", None)
             return self._request(
-                f"balance-monitors/balances/{balance_id}", None, "GET"
+                f"balance-monitors/balances/{percent_encode(balance_id)}",
+                None,
+                "GET",
             )
         except Exception as error:
             return handle_error(

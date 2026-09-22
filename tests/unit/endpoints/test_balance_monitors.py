@@ -12,8 +12,11 @@ disambiguate.
 
 from __future__ import annotations
 
+import pytest
+
 from blnk_sdk.http_client import format_response
 from blnk_sdk.services.balance_monitors import BalanceMonitor
+from blnk_sdk.uri_utils import percent_encode
 from tests.mocks.blnk_client_mocks import create_mock_blnk_request, create_mock_logger
 from tests.mocks.capture import CapturingRequest
 
@@ -144,6 +147,27 @@ def test_list_by_balance_id_calls_nested_route() -> None:
     assert _args(captured_request) == [
         (f"balance-monitors/balances/{balance_id}", None, "GET")
     ]
+
+
+@pytest.mark.parametrize("balance_id", ["bln/a", "bln?x=1", "bln#frag"])
+def test_list_by_balance_id_percent_encodes_reserved_id_chars(
+    balance_id: str,
+) -> None:
+    """list_by_balance_id percent-encodes /, ?, and # in the path id"""
+    mock_logger = create_mock_logger()
+    third_party_request = create_mock_blnk_request(True, None, 200)
+    captured_request = CapturingRequest(third_party_request)
+    balance_monitor = BalanceMonitor(captured_request, mock_logger, format_response)
+
+    response = balance_monitor.list_by_balance_id(balance_id)
+
+    assert response.status == 200
+    assert _args(captured_request) == [
+        (f"balance-monitors/balances/{percent_encode(balance_id)}", None, "GET")
+    ]
+    assert "/" not in captured_request.calls[0][0].rsplit("balances/", 1)[-1]
+    assert "?" not in captured_request.calls[0][0].rsplit("balances/", 1)[-1]
+    assert "#" not in captured_request.calls[0][0].rsplit("balances/", 1)[-1]
 
 
 def test_list_by_balance_id_rejects_empty_id() -> None:

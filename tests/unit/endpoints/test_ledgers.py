@@ -194,6 +194,19 @@ def test_list_rejects_limit_below_one() -> None:
     assert response.message == "limit must be at least 1"
 
 
+def test_list_rejects_unknown_option_keys() -> None:
+    """list rejects a misspelled option so Core defaults are not used by accident"""
+    third_party_request = create_mock_blnk_request(True, None, 200)
+    captured_request = CapturingRequest(third_party_request)
+    ledgers = Ledgers(captured_request, MOCK_LOGGER, format_response)
+
+    response = ledgers.list({"limt": 50})
+
+    assert _args(captured_request) == []
+    assert response.status == 400
+    assert response.message == "unsupported list option: limt"
+
+
 def test_list_handles_thrown_errors_gracefully() -> None:
     """list handles thrown errors gracefully"""
     third_party_request = create_mock_blnk_request(True, "Network Error")

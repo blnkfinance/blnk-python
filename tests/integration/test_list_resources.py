@@ -24,6 +24,26 @@ CLIENT_OPTIONS = BlnkClientOptions(base_url=BASE_URL)
 CLIENT = blnk_init(BLNK_API_KEY, CLIENT_OPTIONS)
 
 
+def _page_until(list_fn, predicate, missing: str):
+    """Walk paginated list() results until predicate matches a row."""
+    found = None
+    offset = 0
+    limit = 50
+    while True:
+        response = list_fn({"limit": limit, "offset": offset})
+        assert response.status == 200, response.message
+        assert isinstance(response.data, list)
+        for row in response.data:
+            if predicate(row):
+                found = row
+                break
+        if found is not None or len(response.data) < limit:
+            break
+        offset += limit
+    assert found is not None, missing
+    return found
+
+
 def test_list_ledgers_finds_uniquely_named_ledger() -> None:
     """create a uniquely named ledger, list ledgers, find it"""
     ledger_name = f"Python List {uuid.uuid4()}"
@@ -31,22 +51,11 @@ def test_list_ledgers_finds_uniquely_named_ledger() -> None:
     assert created.status == 201, created.message
     ledger_id = created.data["ledger_id"]
 
-    found = None
-    offset = 0
-    limit = 50
-    while True:
-        response = CLIENT.ledgers.list({"limit": limit, "offset": offset})
-        assert response.status == 200, response.message
-        assert isinstance(response.data, list)
-        for row in response.data:
-            if row.get("ledger_id") == ledger_id or row.get("name") == ledger_name:
-                found = row
-                break
-        if found is not None or len(response.data) < limit:
-            break
-        offset += limit
-
-    assert found is not None, f"created ledger {ledger_id!r} missing from list"
+    found = _page_until(
+        CLIENT.ledgers.list,
+        lambda row: row.get("ledger_id") == ledger_id or row.get("name") == ledger_name,
+        f"created ledger {ledger_id!r} missing from list",
+    )
     assert found["name"] == ledger_name
 
 
@@ -62,10 +71,11 @@ def test_list_balances_transactions_and_monitors_by_balance() -> None:
     assert balance.status == 201, balance.message
     balance_id = balance.data["balance_id"]
 
-    balances = CLIENT.ledger_balances.list({"limit": 50})
-    assert balances.status == 200, balances.message
-    assert isinstance(balances.data, list)
-    assert any(row.get("balance_id") == balance_id for row in balances.data)
+    _page_until(
+        CLIENT.ledger_balances.list,
+        lambda row: row.get("balance_id") == balance_id,
+        f"created balance {balance_id!r} missing from list",
+    )
 
     txn = CLIENT.transactions.create(
         {
@@ -80,10 +90,13 @@ def test_list_balances_transactions_and_monitors_by_balance() -> None:
         }
     )
     assert txn.status in (200, 201), txn.message
+    txn_id = txn.data["transaction_id"]
 
-    transactions = CLIENT.transactions.list({"limit": 50})
-    assert transactions.status == 200, transactions.message
-    assert isinstance(transactions.data, list)
+    _page_until(
+        CLIENT.transactions.list,
+        lambda row: row.get("transaction_id") == txn_id,
+        f"created transaction {txn_id!r} missing from list",
+    )
 
     monitor = CLIENT.balance_monitor.create(
         {

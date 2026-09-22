@@ -64,3 +64,22 @@ def test_limit_checked_first() -> None:
         validate_list_options(ListOptions(limit=0, offset=-1).to_dict())
         == "limit must be at least 1"
     )
+
+
+def test_rejects_unknown_keys() -> None:
+    """rejects unknown dictionary keys so typos are not silently dropped"""
+    assert (
+        validate_list_options({"limt": 50}) == "unsupported list option: limt"
+    )
+    assert (
+        validate_list_options({"limit": 10, "page": 2})
+        == "unsupported list option: page"
+    )
+
+
+def test_unknown_keys_checked_after_limit() -> None:
+    """limit errors still surface before unknown-key errors"""
+    assert (
+        validate_list_options({"limit": 0, "limt": 50})
+        == "limit must be at least 1"
+    )

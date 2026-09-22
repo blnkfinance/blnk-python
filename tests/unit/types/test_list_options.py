@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from blnk_sdk.types.list_options import ListOptions, list_options_query_string
+from blnk_sdk.types.list_options import (
+    ListOptions,
+    list_options_query_string,
+    unknown_list_option_keys,
+)
 
 
 def test_unset_fields_absent() -> None:
@@ -29,3 +33,9 @@ def test_last_write_wins() -> None:
     options = ListOptions(limit=3)
     options.limit = 7
     assert options.to_query_string() == "?limit=7"
+
+
+def test_unknown_keys_are_named() -> None:
+    """unknown dictionary keys are named so callers can reject them"""
+    assert unknown_list_option_keys({"limt": 50}) == ["limt"]
+    assert unknown_list_option_keys({"limit": 10, "page": 1, "offset": 0}) == ["page"]

@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from ..types import DTO
+from ..types.list_options import unknown_list_option_keys
 
 __all__ = ["validate_list_options"]
 
@@ -40,5 +41,9 @@ def validate_list_options(data: Any) -> Optional[str]:
             return "offset must be an integer if provided"
         if offset < 0:
             return "offset must be at least 0"
+
+    unknown = unknown_list_option_keys(data)
+    if unknown:
+        return f"unsupported list option: {unknown[0]}"
 
     return None
