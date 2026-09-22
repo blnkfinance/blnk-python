@@ -8,6 +8,8 @@ forwarded by reference after serialize (dicts unchanged; DTOs as to_dict).
 
 from __future__ import annotations
 
+import pytest
+
 from blnk_sdk.http_client import format_response
 from blnk_sdk.services.search import Search
 from blnk_sdk.types.search import MultiSearchParams, SearchParams
@@ -55,6 +57,12 @@ def test_multi_search_posts_searches_array() -> None:
         ]
     }
     assert response.status == 200
+
+
+def test_add_rejects_collection_inside_params() -> None:
+    """rejects params.collection so it cannot overwrite the explicit argument"""
+    with pytest.raises(ValueError, match="params must not include 'collection'"):
+        MultiSearchParams().add("transactions", {"collection": "balances", "q": "*"})
 
 
 def test_multi_search_rejects_empty_searches() -> None:

@@ -95,7 +95,12 @@ class MultiSearchParams(DTO):
 
     def add(self, collection: str, params: Any = None) -> "MultiSearchParams":
         """Appends one search against `collection`; `params` fields are
-        copied in beside it (dict or `SearchParams.to_dict()`)."""
+        copied in beside it (dict or `SearchParams.to_dict()`).
+
+        `params` must not include `collection`. That key comes only from
+        this method's first argument, so a nested value cannot silently
+        retarget the search.
+        """
         entry: Dict[str, Any] = {"collection": collection}
         if params is not None:
             if isinstance(params, dict):
@@ -104,6 +109,11 @@ class MultiSearchParams(DTO):
                 to_dict = getattr(params, "to_dict", None)
                 serialized = to_dict() if callable(to_dict) else params
             if isinstance(serialized, dict):
+                if "collection" in serialized:
+                    raise ValueError(
+                        "params must not include 'collection'; pass it as "
+                        "the first argument to add()"
+                    )
                 entry.update(serialized)
         self.searches.append(entry)
         return self
