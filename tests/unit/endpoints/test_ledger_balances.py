@@ -590,3 +590,52 @@ def test_getat_rejects_empty_timestamp() -> None:
     assert captured_request.calls == []
     assert response.status == 400
     assert response.message == "timestamp is required"
+
+
+def test_list_calls_get_balances() -> None:
+    """list calls GET /balances with no query when no options are given"""
+    third_party_request = create_mock_blnk_request(True, None, 200)
+    captured_request = CapturingRequest(third_party_request)
+    ledger_balance = LedgerBalances(captured_request, MOCK_LOGGER, format_response)
+
+    response = ledger_balance.list()
+
+    assert captured_request.calls == [("balances", None, "GET", None)]
+    assert response.status == 200
+
+
+def test_list_forwards_only_the_pagination_fields_that_were_set() -> None:
+    """list forwards only the pagination fields that were set"""
+    third_party_request = create_mock_blnk_request(True, None, 200)
+    captured_request = CapturingRequest(third_party_request)
+    ledger_balance = LedgerBalances(captured_request, MOCK_LOGGER, format_response)
+
+    ledger_balance.list({"offset": 20})
+
+    assert captured_request.calls == [("balances?offset=20", None, "GET", None)]
+
+
+def test_list_rejects_a_negative_offset() -> None:
+    """list rejects a negative offset without calling the API"""
+    third_party_request = create_mock_blnk_request(True, None, 200)
+    captured_request = CapturingRequest(third_party_request)
+    ledger_balance = LedgerBalances(captured_request, MOCK_LOGGER, format_response)
+
+    response = ledger_balance.list({"offset": -1})
+
+    assert captured_request.calls == []
+    assert response.status == 400
+    assert response.message == "offset must be at least 0"
+
+
+def test_list_rejects_a_non_integer_limit() -> None:
+    """list rejects a non-integer limit without calling the API"""
+    third_party_request = create_mock_blnk_request(True, None, 200)
+    captured_request = CapturingRequest(third_party_request)
+    ledger_balance = LedgerBalances(captured_request, MOCK_LOGGER, format_response)
+
+    response = ledger_balance.list({"limit": "10"})
+
+    assert captured_request.calls == []
+    assert response.status == 400
+    assert response.message == "limit must be an integer if provided"

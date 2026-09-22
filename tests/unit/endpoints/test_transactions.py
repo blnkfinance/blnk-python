@@ -405,6 +405,43 @@ def test_get_rejects_empty_transaction_id():
 
 
 # ---------------------------------------------------------------------------
+# Block: GET all transactions (mock success=True, status=200)
+# ---------------------------------------------------------------------------
+
+
+def test_list_calls_get_transactions():
+    """GET all transactions > list calls GET /transactions with no query when no options are given"""
+    service, captured = _make(200)
+    response = service.list()
+    assert _args(captured) == [("transactions", None, "GET")]
+    assert response.status == 200
+
+
+def test_list_forwards_limit_and_offset():
+    """GET all transactions > list forwards limit and offset as query parameters"""
+    service, captured = _make(200)
+    service.list({"limit": 100, "offset": 200})
+    assert _args(captured) == [("transactions?limit=100&offset=200", None, "GET")]
+
+
+def test_list_rejects_limit_below_one():
+    """GET all transactions > list rejects a limit below 1 without calling the API"""
+    service, captured = _make(200)
+    response = service.list({"limit": 0})
+    assert _args(captured) == []
+    assert response.status == 400
+    assert response.message == "limit must be at least 1"
+
+
+def test_list_handles_thrown_errors_gracefully():
+    """GET all transactions > list handles thrown errors gracefully"""
+    service, captured = _make(throw_error="Network Error")
+    response = service.list()
+    assert response.status == 500
+    assert response.message == "Network Error"
+
+
+# ---------------------------------------------------------------------------
 # Block: GET transaction lineage (mock success=True, status=200)
 # ---------------------------------------------------------------------------
 

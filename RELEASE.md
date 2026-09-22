@@ -36,6 +36,24 @@ Aligns the Python SDK error catalogue with
   with the same rules as `search()`, and failures name the entry
   (`searches[1].collection ...`).
 
+### List
+
+- `ledgers.list` and `ledger_balances.list`, wrapping Core's `GET /ledgers` and
+  `GET /balances`. Both take optional `ListOptions` (`limit` at least `1`,
+  `offset` at least `0`) as query parameters; unset fields fall back to Core's
+  defaults of `10` and `0`. Invalid pagination is rejected client-side with a
+  `400` before any request is made.
+- `transactions.list`, wrapping Core's `GET /transactions`, with the same
+  optional `ListOptions`. Core's default page here is `limit=20`. Core's
+  `GetAllTransactions` handler silently falls back to its defaults on invalid
+  pagination; the SDK rejects it with a `400` instead so mistakes are visible.
+- `balance_monitor.list_by_balance_id`, wrapping Core's
+  `GET /balance-monitors/balances/:balance_id`. Existing `balance_monitor.list()`
+  (all monitors) is unchanged.
+
+These GET list routes have been in Core since ~0.14; this SDK release is
+aligned with Core 0.15.4.
+
 ## v1.4.0
 
 v1.4.0 targets **Blnk Core 0.15.3**. v1.3.0 shipped Core 0.15.0 parity; this

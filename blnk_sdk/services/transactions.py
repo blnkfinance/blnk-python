@@ -14,6 +14,7 @@ from typing import Any, Callable, Optional
 
 from ..logger import handle_error
 from ..transaction_serialization import serialize_create_transaction
+from ..types.list_options import list_endpoint
 from ..uri_utils import percent_encode
 from ..validators.transaction_validators import (
     validate_bulk_commit_inflight,
@@ -115,6 +116,23 @@ class Transactions:
             return self._request(f"transactions/{transaction_id}", None, "GET")
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "get")
+
+    def list(self, options: Optional[Any] = None) -> Any:
+        """GET transactions[?limit=&offset=]. Core defaults to limit=20,
+        offset=0 when query params are omitted.
+
+        Core's GetAllTransactions handler silently falls back to those
+        defaults on an invalid limit or offset. The SDK rejects those
+        values client-side with 400 instead, so caller mistakes stay
+        visible. Options are validated only when provided.
+        """
+        try:
+            error, endpoint = list_endpoint("transactions", options)
+            if error:
+                return self._format_response(400, error, None)
+            return self._request(endpoint, None, "GET")
+        except Exception as error:
+            return handle_error(error, self._logger, self._format_response, "list")
 
     def get_by_reference(self, reference: str) -> Any:
         """GET transactions/reference/{reference} with the reference
