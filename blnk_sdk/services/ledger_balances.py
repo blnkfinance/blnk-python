@@ -13,11 +13,12 @@ No method passes header_options.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 from ..coercion import format_number, is_truthy
 from ..logger import handle_error
 from ..types import DTO
+from ..types.list_options import list_endpoint
 from ..uri_utils import percent_encode
 from ..validators.ledger_balance import (
     validate_create_balance_snapshot,
@@ -93,6 +94,18 @@ class LedgerBalances:
             return self._request(endpoint, None, "GET")
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "get")
+
+    def list(self, options: Optional[Any] = None) -> Any:
+        """GET balances[?limit=&offset=]. Core defaults to limit=10, offset=0
+        when query params are omitted. Options are validated only when
+        provided; invalid pagination returns 400 without a request."""
+        try:
+            error, endpoint = list_endpoint("balances", options)
+            if error:
+                return self._format_response(400, error, None)
+            return self._request(endpoint, None, "GET")
+        except Exception as error:
+            return handle_error(error, self._logger, self._format_response, "list")
 
     def get_by_indicator(self, indicator: str, currency: str) -> Any:
         """GET balances/indicator/{indicator}/currency/{currency} — both

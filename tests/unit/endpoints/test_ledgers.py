@@ -143,3 +143,64 @@ def test_update_handles_thrown_errors_gracefully() -> None:
     assert _args(captured_request) == [("ledgers/ldg_123", data, "PUT")]
     assert response.status == 500
     assert response.message == "Network Error"
+
+
+def test_list_calls_get_ledgers() -> None:
+    """list calls GET /ledgers with no query when no options are given"""
+    third_party_request = create_mock_blnk_request(True, None, 200)
+    captured_request = CapturingRequest(third_party_request)
+    ledgers = Ledgers(captured_request, MOCK_LOGGER, format_response)
+
+    response = ledgers.list()
+
+    assert _args(captured_request) == [("ledgers", None, "GET")]
+    assert response.status == 200
+
+
+def test_list_empty_options_omits_query() -> None:
+    """list with empty options still uses Core defaults (no query string)"""
+    third_party_request = create_mock_blnk_request(True, None, 200)
+    captured_request = CapturingRequest(third_party_request)
+    ledgers = Ledgers(captured_request, MOCK_LOGGER, format_response)
+
+    response = ledgers.list({})
+
+    assert _args(captured_request) == [("ledgers", None, "GET")]
+    assert response.status == 200
+
+
+def test_list_forwards_limit_and_offset() -> None:
+    """list forwards limit and offset as query parameters"""
+    third_party_request = create_mock_blnk_request(True, None, 200)
+    captured_request = CapturingRequest(third_party_request)
+    ledgers = Ledgers(captured_request, MOCK_LOGGER, format_response)
+
+    response = ledgers.list({"limit": 25, "offset": 50})
+
+    assert _args(captured_request) == [("ledgers?limit=25&offset=50", None, "GET")]
+    assert response.status == 200
+
+
+def test_list_rejects_limit_below_one() -> None:
+    """list rejects a limit below 1 without calling the API"""
+    third_party_request = create_mock_blnk_request(True, None, 200)
+    captured_request = CapturingRequest(third_party_request)
+    ledgers = Ledgers(captured_request, MOCK_LOGGER, format_response)
+
+    response = ledgers.list({"limit": 0})
+
+    assert _args(captured_request) == []
+    assert response.status == 400
+    assert response.message == "limit must be at least 1"
+
+
+def test_list_handles_thrown_errors_gracefully() -> None:
+    """list handles thrown errors gracefully"""
+    third_party_request = create_mock_blnk_request(True, "Network Error")
+    captured_request = CapturingRequest(third_party_request)
+    ledgers = Ledgers(captured_request, MOCK_LOGGER, format_response)
+
+    response = ledgers.list()
+
+    assert response.status == 500
+    assert response.message == "Network Error"

@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from ..logger import handle_error
+from ..string_utils import is_valid_string
 from ..uri_utils import percent_encode
 from ..validators.balance_monitors import validate_monitor_data, validate_monitor_id
 
@@ -64,6 +65,24 @@ class BalanceMonitor:
             # Note: errors from list() surface under the name "get";
             # callers depend on this exact string.
             return handle_error(error, self._logger, self._format_response, "get")
+
+    def list_by_balance_id(self, balance_id: str) -> Any:
+        """GET balance-monitors/balances/{balance_id}.
+
+        Distinct from `list()`, which still returns every monitor. The
+        balance_id is interpolated raw (no URL-encoding). Empty or
+        whitespace-only ids return 400 without a request.
+        """
+        try:
+            if not is_valid_string(balance_id) or balance_id.strip() == "":
+                return self._format_response(400, "balance id is required", None)
+            return self._request(
+                f"balance-monitors/balances/{balance_id}", None, "GET"
+            )
+        except Exception as error:
+            return handle_error(
+                error, self._logger, self._format_response, "listByBalanceId"
+            )
 
     def update(self, id: str, data: Any) -> Any:
         """PUT balance-monitors/{id} — raw (un-encoded) id, body validated."""

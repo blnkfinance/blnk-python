@@ -8,9 +8,10 @@ URL-encoding of the id.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 from ..logger import handle_error
+from ..types.list_options import list_endpoint
 from ..validators.ledger_validators import (
     validate_create_ledger,
     validate_update_ledger,
@@ -56,6 +57,18 @@ class Ledgers:
         if the request function raises, the exception PROPAGATES to the
         caller. Do not add a guard."""
         return self._request(f"ledgers/{id}", None, "GET")
+
+    def list(self, options: Optional[Any] = None) -> Any:
+        """GET ledgers[?limit=&offset=]. Core defaults to limit=10, offset=0
+        when query params are omitted. Options are validated only when
+        provided; invalid pagination returns 400 without a request."""
+        try:
+            error, endpoint = list_endpoint("ledgers", options)
+            if error:
+                return self._format_response(400, error, None)
+            return self._request(endpoint, None, "GET")
+        except Exception as error:
+            return handle_error(error, self._logger, self._format_response, "list")
 
     def update(self, id: str, data: Any) -> Any:
         """PUT ledgers/{id} — inline truthiness id check, then validation."""

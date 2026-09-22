@@ -130,6 +130,63 @@ def test_list_balance_monitors() -> None:
     assert _args(captured_request) == [("balance-monitors", None, "GET")]
 
 
+def test_list_by_balance_id_calls_nested_route() -> None:
+    """list_by_balance_id calls GET /balance-monitors/balances/{balance_id}"""
+    mock_logger = create_mock_logger()
+    third_party_request = create_mock_blnk_request(True, None, 200)
+    captured_request = CapturingRequest(third_party_request)
+    balance_monitor = BalanceMonitor(captured_request, mock_logger, format_response)
+    balance_id = "bln_123"
+
+    response = balance_monitor.list_by_balance_id(balance_id)
+
+    assert response.status == 200
+    assert _args(captured_request) == [
+        (f"balance-monitors/balances/{balance_id}", None, "GET")
+    ]
+
+
+def test_list_by_balance_id_rejects_empty_id() -> None:
+    """list_by_balance_id rejects empty balance id without calling the API"""
+    mock_logger = create_mock_logger()
+    third_party_request = create_mock_blnk_request(True, None, 200)
+    captured_request = CapturingRequest(third_party_request)
+    balance_monitor = BalanceMonitor(captured_request, mock_logger, format_response)
+
+    response = balance_monitor.list_by_balance_id("")
+
+    assert _args(captured_request) == []
+    assert response.status == 400
+    assert response.message == "balance id is required"
+
+
+def test_list_by_balance_id_rejects_whitespace_id() -> None:
+    """list_by_balance_id rejects whitespace-only balance id"""
+    mock_logger = create_mock_logger()
+    third_party_request = create_mock_blnk_request(True, None, 200)
+    captured_request = CapturingRequest(third_party_request)
+    balance_monitor = BalanceMonitor(captured_request, mock_logger, format_response)
+
+    response = balance_monitor.list_by_balance_id("   ")
+
+    assert _args(captured_request) == []
+    assert response.status == 400
+    assert response.message == "balance id is required"
+
+
+def test_list_by_balance_id_handles_thrown_errors_gracefully() -> None:
+    """list_by_balance_id handles thrown errors gracefully"""
+    mock_logger = create_mock_logger()
+    third_party_request = create_mock_blnk_request(True, "Network Error")
+    captured_request = CapturingRequest(third_party_request)
+    balance_monitor = BalanceMonitor(captured_request, mock_logger, format_response)
+
+    response = balance_monitor.list_by_balance_id("bln_123")
+
+    assert response.status == 500
+    assert response.message == "Network Error"
+
+
 # --------------------------------------------------------------------------- #
 # PUT BalanceMonitor
 

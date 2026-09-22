@@ -108,6 +108,25 @@ results = blnk.search.multi_search({
 transaction_hits = results.data["results"][0]["hits"]
 ```
 
+Page through ledgers, balances, or transactions (Core defaults to `offset=0` and a
+`limit` of `10`, or `20` for transactions). Invalid `limit`/`offset` is rejected
+client-side with `400` before any request is made:
+
+```python
+from blnk_sdk.types.list_options import ListOptions
+
+first_page = blnk.ledgers.list()
+next_page = blnk.ledgers.list({"limit": 10, "offset": 10})
+# same as blnk.ledgers.list(ListOptions(limit=10, offset=10))
+
+usd_balances = blnk.ledger_balances.list({"limit": 50})
+recent_transactions = blnk.transactions.list({"limit": 100})
+
+monitors_for_balance = blnk.balance_monitor.list_by_balance_id(
+    balance.data["balance_id"]
+)
+```
+
 The client is a context manager — `with blnk_init(...) as blnk:` closes the underlying
 `requests.Session` on exit.
 
@@ -174,7 +193,7 @@ requesting an unregistered service.
 ## Tests
 
 ```sh
-.venv/bin/pytest tests/                # 498 offline unit tests; live-gated suites skip
+.venv/bin/pytest tests/                # 528 offline unit tests; live-gated suites skip
 BLNK_E2E=1 .venv/bin/pytest tests/     # also runs integration + e2e against http://localhost:5001
 BLNK_E2E=1 .venv/bin/pytest tests/integration/test_core_0_15_3.py
 ```
