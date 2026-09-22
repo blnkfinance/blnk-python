@@ -10,8 +10,10 @@ Both `search` and `filter` validate the collection BEFORE the params — when
 both are invalid the collection message wins. The two path shapes differ
 intentionally: `search` posts to `search/{collection}` (prefix style) while
 `filter` posts to `{collection}/filter` (suffix style). Do not "normalize"
-either. Errors surface under the names "search", "filter", "startReindex",
-and "getReindexStatus" — logs and callers depend on these exact strings.
+either. `multi_search` posts to `multi-search` (no collection in the path).
+Errors surface under the names "search", "filter", "multiSearch",
+"startReindex", and "getReindexStatus" — logs and callers depend on these
+exact strings.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ from typing import Any, Callable, Optional
 from ..logger import handle_error
 from ..validators.search_validators import (
     validate_filter_params,
+    validate_multi_search_params,
     validate_search_collection,
     validate_search_params,
     validate_start_reindex_request,
@@ -65,6 +68,22 @@ class Search:
             return self._request(f"search/{collection}", payload, "POST")
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "search")
+
+    def multi_search(self, data: Any) -> Any:
+        """POST multi-search — several single-collection searches in one
+        round trip. The body is validated, then forwarded unmodified.
+        `data` may be a dict or a `MultiSearchParams` DTO."""
+        try:
+            payload = _serialize(data)
+            params_error = validate_multi_search_params(payload)
+            if params_error:
+                return self._format_response(400, params_error, None)
+
+            return self._request("multi-search", payload, "POST")
+        except Exception as error:
+            return handle_error(
+                error, self._logger, self._format_response, "multiSearch"
+            )
 
     def filter(self, data: Any, collection: str) -> Any:
         """POST {collection}/filter — NOTE the path shape: collection FIRST,

@@ -24,6 +24,18 @@ Aligns the Python SDK error catalogue with
   `TXN_VALIDATION_ERROR`) keep their values; no caller changes are needed.
   [Guide](https://docs.blnkfinance.com/advanced/error-codes)
 
+### Search
+
+- `search.multi_search`, wrapping Core's `POST /multi-search`
+  (`api/api.go`: `router.POST("/multi-search", a.MultiSearch)`). That route has
+  been in Core since v0.10.0 (`b396752`); this SDK release is aligned with Core
+  0.15.4. Core binds the body to Typesense's `MultiSearchSearchesParameter` and
+  forwards it unchanged, so the wire shape is
+  `{"searches": [{"collection": ..., "q": ..., ...}]}`. The response has
+  `results` in the same order as `searches`. Each entry is validated client-side
+  with the same rules as `search()`, and failures name the entry
+  (`searches[1].collection ...`).
+
 ## v1.4.0
 
 v1.4.0 targets **Blnk Core 0.15.3**. v1.3.0 shipped Core 0.15.0 parity; this

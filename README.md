@@ -93,6 +93,21 @@ print(preview.data["would_apply"])    # True/False
 print(preview.data["balances"])       # current_* / resulting_* projections
 ```
 
+Search several collections in one request (`POST /multi-search`; results come back
+in the same order as the searches):
+
+```python
+results = blnk.search.multi_search({
+    "searches": [
+        {"collection": "transactions", "q": "ref_001", "query_by": "reference"},
+        {"collection": "balances", "q": "*", "filter_by": "currency:USD"},
+        {"collection": "ledgers", "q": "savings", "query_by": "name"},
+    ],
+})
+
+transaction_hits = results.data["results"][0]["hits"]
+```
+
 The client is a context manager — `with blnk_init(...) as blnk:` closes the underlying
 `requests.Session` on exit.
 
@@ -159,7 +174,7 @@ requesting an unregistered service.
 ## Tests
 
 ```sh
-.venv/bin/pytest tests/                # 482 offline unit tests; live-gated suites skip
+.venv/bin/pytest tests/                # 498 offline unit tests; live-gated suites skip
 BLNK_E2E=1 .venv/bin/pytest tests/     # also runs integration + e2e against http://localhost:5001
 BLNK_E2E=1 .venv/bin/pytest tests/integration/test_core_0_15_3.py
 ```
