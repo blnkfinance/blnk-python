@@ -1,16 +1,21 @@
 # Release Notes
 
-## Unreleased — Core 0.15.4
+## v1.5.0
 
-Aligns the Python SDK error catalogue with
-[Blnk Core 0.15.4](https://docs.blnkfinance.com/changelog/blnk-core).
+v1.5.0 targets **Blnk Core 0.15.4**. v1.4.0 shipped Core 0.15.3 parity; this
+release adds the full Core error catalogue, `search.multi_search`, and list
+methods for ledgers, balances, transactions, and monitors by balance id.
+
+See the [error codes guide](https://docs.blnkfinance.com/advanced/error-codes)
+and the [Core changelog](https://docs.blnkfinance.com/changelog/blnk-core).
 
 ### Errors
 
-- **`BlnkErrorCode`** now mirrors Core's full `error_detail.code` catalogue
+- **`BlnkErrorCode`** — Mirrors Core's full `error_detail.code` catalogue
   (`internal/apierror/codes.go`), grouped by prefix: `GEN_`, `AUTH_`, `APIKEY_`,
   `TXN_`, `BAL_`, `LGR_`, `ACC_`, `IDT_`, `RECON_`, `META_`, `HOOK_`, `QUEUE_`,
-  `SRCH_`, and `ADMIN_`. Each constant documents the HTTP status Core pairs it with.
+  `SRCH_`, and `ADMIN_`. Each constant documents the HTTP status Core pairs it
+  with.
 - Codes introduced or re-routed in Core 0.15.4 that callers should branch on:
   - `TXN_ALREADY_REFUNDED` (`409`): refunding a transaction twice, or refunding a
     refund. Previously the reversal went through.
@@ -26,7 +31,7 @@ Aligns the Python SDK error catalogue with
 
 ### Search
 
-- `search.multi_search`, wrapping Core's `POST /multi-search`
+- **`search.multi_search`** — Wraps Core's `POST /multi-search`
   (`api/api.go`: `router.POST("/multi-search", a.MultiSearch)`). That route has
   been in Core since v0.10.0 (`b396752`); this SDK release is aligned with Core
   0.15.4. Core binds the body to Typesense's `MultiSearchSearchesParameter` and
@@ -38,16 +43,16 @@ Aligns the Python SDK error catalogue with
 
 ### List
 
-- `ledgers.list` and `ledger_balances.list`, wrapping Core's `GET /ledgers` and
-  `GET /balances`. Both take optional `ListOptions` (`limit` at least `1`,
+- **`ledgers.list`** / **`ledger_balances.list`** — Wrap Core's `GET /ledgers`
+  and `GET /balances`. Both take optional `ListOptions` (`limit` at least `1`,
   `offset` at least `0`) as query parameters; unset fields fall back to Core's
   defaults of `10` and `0`. Invalid pagination is rejected client-side with a
   `400` before any request is made.
-- `transactions.list`, wrapping Core's `GET /transactions`, with the same
+- **`transactions.list`** — Wraps Core's `GET /transactions`, with the same
   optional `ListOptions`. Core's default page here is `limit=20`. Core's
   `GetAllTransactions` handler silently falls back to its defaults on invalid
   pagination; the SDK rejects it with a `400` instead so mistakes are visible.
-- `balance_monitor.list_by_balance_id`, wrapping Core's
+- **`balance_monitor.list_by_balance_id`** — Wraps Core's
   `GET /balance-monitors/balances/:balance_id`. Existing `balance_monitor.list()`
   (all monitors) is unchanged.
 
