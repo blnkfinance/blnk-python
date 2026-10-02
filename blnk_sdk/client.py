@@ -33,6 +33,7 @@ from .request_retry import (
 from .safe_log_meta import redact_sensitive_log_meta, safe_log_meta
 from .serialization import compact_json_dumps
 from .transport import RequestsTransport, TransportRequest
+from .uri_utils import append_query_param
 
 Number = Union[int, float]
 
@@ -51,6 +52,10 @@ class BlnkClientOptions:
     retry_count: Optional[Number] = None
     retry_delay_ms: Optional[Number] = None
     logger: Any = None
+    # Cloud instance id (`instance_...`). When set, every request includes
+    # `instance_id` as a query parameter. Required for Cloud Proxy API
+    # calls; leave unset for direct Core.
+    instance_id: Optional[str] = None
 
 
 class Blnk:
@@ -88,6 +93,7 @@ class Blnk:
             "retry_delay_ms": options.retry_delay_ms
             if options.retry_delay_ms is not None
             else DEFAULT_RETRY_DELAY_MS,
+            "instance_id": options.instance_id or "",
         }
         self._options["retry_count"] = normalize_retry_count(
             self._options["retry_count"]
@@ -166,7 +172,13 @@ class Blnk:
             headers.update(header_options)
         headers.update(form_data_headers)
 
-        url = f"{self._options['base_url']}{endpoint}"
+        request_endpoint = endpoint
+        instance_id = self._options.get("instance_id") or ""
+        if instance_id:
+            request_endpoint = append_query_param(
+                endpoint, "instance_id", instance_id
+            )
+        url = f"{self._options['base_url']}{request_endpoint}"
 
         attempt = 0
         for attempt in range(1, max_attempts + 1):
