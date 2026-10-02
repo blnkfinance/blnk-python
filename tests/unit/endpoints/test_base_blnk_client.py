@@ -20,13 +20,16 @@ import pytest
 
 from blnk_sdk.api_response import ApiResponse
 from blnk_sdk.client import Blnk, BlnkClientOptions
+from blnk_sdk.constants import CLOUD_PROXY_BASE_URL
 from blnk_sdk.errors import BlnkApiErrorDetail, BlnkTimeoutError
 from blnk_sdk.http_client import format_response
 from blnk_sdk.multipart import MultipartBody
 from blnk_sdk.services.reconciliation import Reconciliation
+from blnk_sdk.uri_utils import append_query_param, percent_encode
 from tests.mocks.blnk_client_mocks import (
     capture_fn,
     create_mock_blnk_client_options,
+    create_mock_logger,
     create_mock_services,
 )
 from tests.mocks.transport_mock import transport_fail_mock, transport_mock, make_response
@@ -347,6 +350,7 @@ def test_defaults_client_timeout_and_retry_options() -> None:
     assert default_blnk._options["timeout"] == 10000
     assert default_blnk._options["retry_count"] == 1
     assert default_blnk._options["retry_delay_ms"] == 2000
+    assert default_blnk._options["instance_id"] == ""
 
 
 def test_request_attaches_structured_error_from_error_detail() -> None:
@@ -568,3 +572,94 @@ def test_should_append_slash_to_base_url_if_it_is_not_set() -> None:
     assert blnk_without_base_url._options["base_url"] == "base/"
     # Note: the caller's options object is mutated in place.
     assert options_without_base_url.base_url == "base/"
+
+
+INSTANCE_ID = "instance_073f7ffe-9dfd-42ce-aa50-d1dca1788adc"
+
+
+def _proxy_options(instance_id: str = INSTANCE_ID) -> BlnkClientOptions:
+    return BlnkClientOptions(
+        base_url=CLOUD_PROXY_BASE_URL,
+        timeout=5000,
+        logger=create_mock_logger(),
+        instance_id=instance_id,
+    )
+
+
+def test_append_query_param_uses_question_or_ampersand() -> None:
+    assert append_query_param("ledgers", "instance_id", INSTANCE_ID) == (
+        f"ledgers?instance_id={INSTANCE_ID}"
+    )
+    assert append_query_param("ledgers?limit=10", "instance_id", INSTANCE_ID) == (
+        f"ledgers?limit=10&instance_id={INSTANCE_ID}"
+    )
+    reserved = "inst & id"
+    assert append_query_param("ledgers", "instance_id", reserved) == (
+        f"ledgers?instance_id={percent_encode(reserved)}"
+    )
+
+
+def test_omits_instance_id_query_when_unset() -> None:
+    captured_transport = capture_fn(transport_mock)
+    blnk = Blnk(API_KEY, OPTIONS, MOCK_SERVICES, format_response, captured_transport)
+
+    blnk._request("ledgers", {"name": "x"}, "POST")
+
+    assert captured_transport.calls[0].args[0] == "http://mock-api.com/ledgers"
+    assert blnk._options["instance_id"] == ""
+
+
+def test_appends_instance_id_query_on_cloud_proxy_requests() -> None:
+    captured_transport = capture_fn(transport_mock)
+    blnk = Blnk(
+        API_KEY, _proxy_options(), MOCK_SERVICES, format_response, captured_transport
+    )
+
+    blnk._request("ledgers", {"name": "x"}, "POST")
+
+    assert captured_transport.calls[0].args[0] == (
+        f"{CLOUD_PROXY_BASE_URL}/ledgers?instance_id={INSTANCE_ID}"
+    )
+    assert captured_transport.calls[0].args[1].headers["X-Blnk-Key"] == API_KEY
+
+
+def test_appends_instance_id_with_ampersand_when_endpoint_has_query() -> None:
+    captured_transport = capture_fn(transport_mock)
+    blnk = Blnk(
+        API_KEY, _proxy_options(), MOCK_SERVICES, format_response, captured_transport
+    )
+
+    blnk._request("ledgers?limit=10&offset=0", None, "GET")
+
+    assert captured_transport.calls[0].args[0] == (
+        f"{CLOUD_PROXY_BASE_URL}/ledgers?limit=10&offset=0&instance_id={INSTANCE_ID}"
+    )
+
+
+def test_percent_encodes_instance_id_query_value() -> None:
+    captured_transport = capture_fn(transport_mock)
+    raw_id = "instance a&b=c"
+    blnk = Blnk(
+        API_KEY,
+        _proxy_options(raw_id),
+        MOCK_SERVICES,
+        format_response,
+        captured_transport,
+    )
+
+    blnk._request("health", {}, "GET")
+
+    assert captured_transport.calls[0].args[0] == (
+        f"{CLOUD_PROXY_BASE_URL}/health?instance_id={percent_encode(raw_id)}"
+    )
+
+
+def test_empty_instance_id_does_not_add_query_param() -> None:
+    captured_transport = capture_fn(transport_mock)
+    blnk = Blnk(
+        API_KEY, _proxy_options(""), MOCK_SERVICES, format_response, captured_transport
+    )
+
+    blnk._request("health", {}, "GET")
+
+    assert captured_transport.calls[0].args[0] == f"{CLOUD_PROXY_BASE_URL}/health"

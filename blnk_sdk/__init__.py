@@ -3,6 +3,7 @@
 from .api_response import ApiResponse
 from .client import Blnk, BlnkClientOptions, blnk_init
 from .constants import (
+    CLOUD_PROXY_BASE_URL,
     DEFAULT_RETRY_COUNT,
     DEFAULT_RETRY_DELAY_MS,
     DEFAULT_TIMEOUT_MS,
@@ -29,6 +30,7 @@ __all__ = [
     "BlnkClientOptions",
     "BlnkServiceError",
     "BlnkTimeoutError",
+    "CLOUD_PROXY_BASE_URL",
     "CustomLogger",
     "DEFAULT_RETRY_COUNT",
     "DEFAULT_RETRY_DELAY_MS",
