@@ -2,8 +2,9 @@
 
 Metadata operations for ledgers, transactions, balances, and identities.
 `update` uses HTTP POST (not PUT/PATCH) to `{id}/metadata`, where the
-caller-supplied entity id forms the leading path segment(s). The id is
-validated but NOT URL-encoded — an id containing "/" changes the path shape.
+caller-supplied entity id forms the leading path segment. The id goes
+through `endpoint_path`, so it must be a single path segment (no "/", "..",
+etc.) and is percent-encoded.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from ..logger import handle_error
+from ..uri_utils import endpoint_path
 from ..validators.metadata_validators import validate_update_metadata_data
 
 
@@ -42,6 +44,6 @@ class Metadata:
             validator_response = validate_update_metadata_data(id, payload)
             if validator_response:
                 return self._format_response(400, validator_response, None)
-            return self._request(f"{id}/metadata", payload, "POST")
+            return self._request(endpoint_path("{}/metadata", id), payload, "POST")
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "update")

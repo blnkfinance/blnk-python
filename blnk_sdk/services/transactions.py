@@ -15,7 +15,7 @@ from typing import Any, Callable, Optional
 from ..logger import handle_error
 from ..transaction_serialization import serialize_create_transaction
 from ..types.list_options import list_endpoint
-from ..uri_utils import percent_encode
+from ..uri_utils import endpoint_path, free_form_path_segment, percent_encode
 from ..validators.transaction_validators import (
     validate_bulk_commit_inflight,
     validate_bulk_transactions,
@@ -70,8 +70,8 @@ class Transactions:
             return handle_error(error, self._logger, self._format_response, "create")
 
     def update_status(self, id: str, update: Any) -> Any:
-        """PUT transactions/inflight/{id} — body sent as-is; the id is never
-        validated nor URL-encoded.
+        """PUT transactions/inflight/{id} — body sent as-is; the id goes
+        through path_segment (400 when it is not a single safe segment).
 
         Set ``dry_run=True`` to preview commit/void without settling the hold.
         """
@@ -80,7 +80,9 @@ class Transactions:
             validator_response = validate_update_transactions(view)
             if validator_response:
                 return self._format_response(400, validator_response, None)
-            return self._request(f"transactions/inflight/{id}", view, "PUT")
+            return self._request(
+                endpoint_path("transactions/inflight/{}", id), view, "PUT"
+            )
         except Exception as error:
             return handle_error(
                 error, self._logger, self._format_response, "updateStatus"
@@ -88,13 +90,14 @@ class Transactions:
 
     def refund(self, id: str, options: Optional[Any] = None) -> Any:
         """POST refund-transaction/{id} — optional body (None when no options
-        are given); the id is never validated nor URL-encoded.
+        are given); the id goes through path_segment.
 
         Options: ``skip_queue``, ``description``, ``meta_data``, ``dry_run``.
         Empty description inherits the original; metadata is merged onto the
         inherited copy. ``dry_run=True`` previews without writing.
         """
         try:
+            endpoint = endpoint_path("refund-transaction/{}", id)
             body = None
             if options is not None:
                 view = _dict_view(options)
@@ -103,17 +106,20 @@ class Transactions:
                     return self._format_response(400, validator_response, None)
                 body = view
 
-            return self._request(f"refund-transaction/{id}", body, "POST")
+            return self._request(endpoint, body, "POST")
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "refund")
 
     def get(self, transaction_id: str) -> Any:
-        """GET transactions/{transaction_id} — raw id, no encoding."""
+        """GET transactions/{transaction_id} — id validated and encoded by
+        path_segment."""
         try:
             if not transaction_id:
                 return self._format_response(400, "transaction id is required", None)
 
-            return self._request(f"transactions/{transaction_id}", None, "GET")
+            return self._request(
+                endpoint_path("transactions/{}", transaction_id), None, "GET"
+            )
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "get")
 
@@ -135,14 +141,15 @@ class Transactions:
             return handle_error(error, self._logger, self._format_response, "list")
 
     def get_by_reference(self, reference: str) -> Any:
-        """GET transactions/reference/{reference} with the reference
-        URL-encoded."""
+        """GET transactions/reference/{reference}. References are free-form,
+        so "/" and "%" are percent-encoded rather than rejected; "." and ".."
+        (which encoding leaves unchanged) and control characters return 400."""
         try:
             if not reference:
                 return self._format_response(400, "reference is required", None)
 
             return self._request(
-                f"transactions/reference/{percent_encode(reference)}",
+                "transactions/reference/" + free_form_path_segment(reference),
                 None,
                 "GET",
             )
@@ -152,13 +159,16 @@ class Transactions:
             )
 
     def get_lineage(self, transaction_id: str) -> Any:
-        """GET transactions/{transaction_id}/lineage — raw (un-encoded) id."""
+        """GET transactions/{transaction_id}/lineage — id validated and
+        encoded by path_segment."""
         try:
             if not transaction_id:
                 return self._format_response(400, "transaction id is required", None)
 
             return self._request(
-                f"transactions/{transaction_id}/lineage", None, "GET"
+                endpoint_path("transactions/{}/lineage", transaction_id),
+                None,
+                "GET",
             )
         except Exception as error:
             return handle_error(

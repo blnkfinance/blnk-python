@@ -6,9 +6,9 @@ which is guaranteed to end with "/"). No header_options are ever passed
 (3-arg request calls). Every method is wrapped in try/except -> handle_error
 with its own method name.
 
-Hooks NEVER URL-encodes anything — the id is interpolated raw into
-`hooks/{id}` and the (already-validated) type enum is interpolated raw into
-`hooks?type={type}`. Contrast ApiKeys, which encodes both.
+The id in `hooks/{id}` goes through `endpoint_path` (validated as a single
+path segment, then percent-encoded). The (already-validated) type enum is
+interpolated raw into `hooks?type={type}`.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from ..logger import handle_error
+from ..uri_utils import endpoint_path
 from ..validators.hook_validators import (
     validate_create_hook_data,
     validate_list_hooks_options,
@@ -85,17 +86,17 @@ class Hooks:
             return handle_error(error, self._logger, self._format_response, "list")
 
     def get(self, id: str) -> Any:
-        """GET hooks/{id} — raw id, no URL-encoding."""
+        """GET hooks/{id} — id validated and encoded by path_segment."""
         try:
             if not id:
                 return self._format_response(400, "hook id is required", None)
-            return self._request(f"hooks/{id}", None, "GET")
+            return self._request(endpoint_path("hooks/{}", id), None, "GET")
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "get")
 
     def update(self, id: str, data: Any) -> Any:
         """PUT hooks/{id} — id truthiness check runs BEFORE payload
-        validation; raw (un-encoded) id; `data` forwarded unmodified.
+        validation; id validated and encoded by path_segment; `data` forwarded unmodified.
         Note: an invalid payload yields the message that names
         CreateHookData; callers depend on this exact string."""
         try:
@@ -106,15 +107,15 @@ class Hooks:
             validator_response = validate_update_hook_data(payload)
             if validator_response:
                 return self._format_response(400, validator_response, None)
-            return self._request(f"hooks/{id}", payload, "PUT")
+            return self._request(endpoint_path("hooks/{}", id), payload, "PUT")
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "update")
 
     def delete(self, id: str) -> Any:
-        """DELETE hooks/{id} — raw id, no URL-encoding."""
+        """DELETE hooks/{id} — id validated and encoded by path_segment."""
         try:
             if not id:
                 return self._format_response(400, "hook id is required", None)
-            return self._request(f"hooks/{id}", None, "DELETE")
+            return self._request(endpoint_path("hooks/{}", id), None, "DELETE")
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "delete")

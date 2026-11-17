@@ -33,7 +33,7 @@ from .request_retry import (
 from .safe_log_meta import redact_sensitive_log_meta, safe_log_meta
 from .serialization import compact_json_dumps
 from .transport import RequestsTransport, TransportRequest
-from .uri_utils import append_query_param
+from .uri_utils import append_query_param, has_dot_segment
 
 Number = Union[int, float]
 
@@ -171,6 +171,22 @@ class Blnk:
         if header_options:
             headers.update(header_options)
         headers.update(form_data_headers)
+
+        # Refuse endpoints whose decoded path has a "." or ".." segment
+        # ("%2e%2e" included): resolved by the server or a proxy in front
+        # of it, they would move the request — and the X-Blnk-Key header —
+        # outside the base path (Core root or the Cloud Proxy /proxy/ base).
+        # Services already validate ids; this is the last line of defence.
+        endpoint_path_part = endpoint.split("?", 1)[0].split("#", 1)[0]
+        if has_dot_segment(endpoint_path_part):
+            self._logger.error(
+                "Refusing request: endpoint path contains a dot segment"
+            )
+            return self._format_response(
+                400,
+                "invalid endpoint: path must not contain '.' or '..' segments",
+                None,
+            )
 
         request_endpoint = endpoint
         instance_id = self._options.get("instance_id") or ""

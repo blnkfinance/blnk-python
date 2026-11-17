@@ -5,10 +5,10 @@ Every method returns an ApiResponse value and NEVER raises: validation failure
 errors -> handle_error -> 500. No identity method ever passes header_options.
 
 Path behavior notes:
-- ONLY `delete` URL-encodes the path id; every other method interpolates the
-  raw id (and raw field name) into the path.
-- `get` and `update` perform NO id validation at all (`get("")` issues
-  `GET identities/` — the list endpoint).
+- Every path id (and tokenize/detokenize field name) goes through
+  `endpoint_path`: a value that is not a single safe path segment (empty,
+  "." / "..", or containing / \\ ? # % or a control character) returns 400
+  without a request; anything else is percent-encoded.
 - `tokenize`/`detokenize` send their data argument AS-IS (no copy/transform);
   `create`/`update` serialize via serialize_identity_data first.
 - Verb asymmetry: `tokenize_field` is POST, `detokenize_field` is GET (so only
@@ -21,7 +21,7 @@ from typing import Any, Callable
 
 from ..identity_serialization import serialize_identity_data
 from ..logger import handle_error
-from ..uri_utils import percent_encode
+from ..uri_utils import endpoint_path
 from ..validators.identity_validators import (
     validate_detokenize_identity_data,
     validate_identity,
@@ -55,9 +55,9 @@ class Identity:
             return handle_error(error, self._logger, self._format_response, "create")
 
     def get(self, id: Any) -> Any:
-        """GET identities/{id} — no validation, raw (un-encoded) id."""
+        """GET identities/{id} — id validated and encoded by path_segment."""
         try:
-            return self._request(f"identities/{id}", None, "GET")
+            return self._request(endpoint_path("identities/{}", id), None, "GET")
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "get")
 
@@ -69,48 +69,54 @@ class Identity:
             return handle_error(error, self._logger, self._format_response, "list")
 
     def update(self, id: Any, data: Any) -> Any:
-        """PUT identities/{id} — body validated, id NOT."""
+        """PUT identities/{id} — id checked by path_segment first, then the
+        body is validated."""
         try:
+            endpoint = endpoint_path("identities/{}", id)
             message = validate_identity(data)
             if message:
                 return self._format_response(400, message, None)
             payload = serialize_identity_data(data)
-            return self._request(f"identities/{id}", payload, "PUT")
+            return self._request(endpoint, payload, "PUT")
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "update")
 
     def delete(self, id: Any) -> Any:
-        """DELETE identities/{id} with the id URL-encoded — the ONLY method
-        that URL-encodes the id. No request body."""
+        """DELETE identities/{id} — id validated and encoded by path_segment.
+        No request body."""
         try:
             message = validate_identity_id(id)
             if message:
                 return self._format_response(400, message, None)
             return self._request(
-                f"identities/{percent_encode(id)}", None, "DELETE"
+                endpoint_path("identities/{}", id), None, "DELETE"
             )
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "delete")
 
     def get_tokenized_fields(self, id: Any) -> Any:
-        """GET identities/{id}/tokenized-fields (raw id)."""
+        """GET identities/{id}/tokenized-fields."""
         try:
             message = validate_identity_id(id)
             if message:
                 return self._format_response(400, message, None)
-            return self._request(f"identities/{id}/tokenized-fields", None, "GET")
+            return self._request(
+                endpoint_path("identities/{}/tokenized-fields", id), None, "GET"
+            )
         except Exception as error:
             return handle_error(
                 error, self._logger, self._format_response, "getTokenizedFields"
             )
 
     def tokenize_field(self, id: Any, field: Any) -> Any:
-        """POST identities/{id}/tokenize/{field} (raw id AND raw field)."""
+        """POST identities/{id}/tokenize/{field} (both segments validated)."""
         try:
             message = validate_tokenize_identity_field(id, field)
             if message:
                 return self._format_response(400, message, None)
-            return self._request(f"identities/{id}/tokenize/{field}", None, "POST")
+            return self._request(
+                endpoint_path("identities/{}/tokenize/{}", id, field), None, "POST"
+            )
         except Exception as error:
             return handle_error(
                 error, self._logger, self._format_response, "tokenizeField"
@@ -122,17 +128,21 @@ class Identity:
             message = validate_tokenize_identity_data(id, data)
             if message:
                 return self._format_response(400, message, None)
-            return self._request(f"identities/{id}/tokenize", data, "POST")
+            return self._request(
+                endpoint_path("identities/{}/tokenize", id), data, "POST"
+            )
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "tokenize")
 
     def detokenize_field(self, id: Any, field: Any) -> Any:
-        """GET identities/{id}/detokenize/{field} (raw id AND raw field)."""
+        """GET identities/{id}/detokenize/{field} (both segments validated)."""
         try:
             message = validate_tokenize_identity_field(id, field)
             if message:
                 return self._format_response(400, message, None)
-            return self._request(f"identities/{id}/detokenize/{field}", None, "GET")
+            return self._request(
+                endpoint_path("identities/{}/detokenize/{}", id, field), None, "GET"
+            )
         except Exception as error:
             return handle_error(
                 error, self._logger, self._format_response, "detokenizeField"
@@ -145,7 +155,9 @@ class Identity:
             message = validate_detokenize_identity_data(id, data)
             if message:
                 return self._format_response(400, message, None)
-            return self._request(f"identities/{id}/detokenize", data, "POST")
+            return self._request(
+                endpoint_path("identities/{}/detokenize", id), data, "POST"
+            )
         except Exception as error:
             return handle_error(
                 error, self._logger, self._format_response, "detokenize"

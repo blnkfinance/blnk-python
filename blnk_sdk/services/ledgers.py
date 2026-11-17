@@ -2,16 +2,18 @@
 
 Endpoint strings have NO leading slash (the client concatenates onto base_url,
 which is guaranteed to end with "/"). No header_options are ever passed
-(3-arg request calls). The path interpolation `ledgers/{id}` performs NO
-URL-encoding of the id.
+(3-arg request calls). The id in `ledgers/{id}` goes through `endpoint_path`
+(validated as a single path segment, then percent-encoded).
 """
 
 from __future__ import annotations
 
 from typing import Any, Callable, Optional
 
+from ..errors import InvalidPathSegmentError
 from ..logger import handle_error
 from ..types.list_options import list_endpoint
+from ..uri_utils import endpoint_path
 from ..validators.ledger_validators import (
     validate_create_ledger,
     validate_update_ledger,
@@ -53,10 +55,15 @@ class Ledgers:
     def get(self, id: str) -> Any:
         """GET ledgers/{id}.
 
-        No id validation (get("") issues `GET ledgers/`) and NO try/except —
-        if the request function raises, the exception PROPAGATES to the
-        caller. Do not add a guard."""
-        return self._request(f"ledgers/{id}", None, "GET")
+        An id that is not a single safe path segment (empty, "..", contains
+        "/", ...) returns 400 without a request. Otherwise there is NO
+        try/except — if the request function raises, the exception
+        PROPAGATES to the caller. Do not add a guard."""
+        try:
+            endpoint = endpoint_path("ledgers/{}", id)
+        except InvalidPathSegmentError as error:
+            return self._format_response(400, str(error), None)
+        return self._request(endpoint, None, "GET")
 
     def list(self, options: Optional[Any] = None) -> Any:
         """GET ledgers[?limit=&offset=]. Core defaults to limit=10, offset=0
@@ -81,6 +88,6 @@ class Ledgers:
             if error:
                 return self._format_response(400, error, None)
 
-            return self._request(f"ledgers/{id}", payload, "PUT")
+            return self._request(endpoint_path("ledgers/{}", id), payload, "PUT")
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "update")

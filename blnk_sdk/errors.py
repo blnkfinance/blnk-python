@@ -284,3 +284,13 @@ def parse_blnk_api_error_body(body: Any) -> Optional[BlnkApiErrorDetail]:
         return BlnkApiErrorDetail(code="UNKNOWN", message=error)
 
     return None
+
+
+class InvalidPathSegmentError(ValueError):
+    """Raised by ``uri_utils.path_segment`` when a caller-supplied value
+    cannot safely become one URL path segment (empty, ``.`` / ``..``, or
+    containing ``/ \\ ? # %`` or a control character).
+
+    Service methods never let it escape: they turn it into a 400 response
+    and send no request.
+    """

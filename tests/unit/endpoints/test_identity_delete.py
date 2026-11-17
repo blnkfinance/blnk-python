@@ -45,17 +45,16 @@ def test_delete_deletes_identities_id() -> None:
     assert response.data["message"] == "Identity deleted successfully"
 
 
-def test_delete_url_encodes_identity_id() -> None:
-    """delete URL-encodes identity id"""
+def test_delete_rejects_identity_id_with_slash() -> None:
+    """delete returns 400 and sends nothing for an id containing /"""
     mock_logger = create_mock_logger()
     captured_request = CapturingRequest(_success_request)
     identity = Identity(captured_request, mock_logger, format_response)
 
-    identity.delete("idt_test/special")
+    response = identity.delete("idt_test/special")
 
-    assert _captured(captured_request) == [
-        ("identities/idt_test%2Fspecial", None, "DELETE"),
-    ]
+    assert captured_request.calls == []
+    assert response.status == 400
 
 
 def test_delete_returns_400_for_empty_id() -> None:

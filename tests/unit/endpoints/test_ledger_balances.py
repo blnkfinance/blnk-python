@@ -318,13 +318,26 @@ def test_getbyindicator_calls_correct_endpoint() -> None:
     assert response.status == 200
 
 
+def test_getbyindicator_rejects_slash_in_segments() -> None:
+    """getByIndicator returns 400 and sends nothing when the indicator or
+    currency contains /"""
+    third_party_request = create_mock_blnk_request(True, None, 200)
+    captured_request = CapturingRequest(third_party_request)
+    ledger_balance = LedgerBalances(captured_request, MOCK_LOGGER, format_response)
+
+    response = ledger_balance.get_by_indicator("@user/name", "USD/EUR")
+
+    assert response.status == 400
+    assert captured_request.calls == []
+
+
 def test_getbyindicator_path_escapes_special_characters() -> None:
     """getByIndicator path-escapes special characters"""
     third_party_request = create_mock_blnk_request(True, None, 200)
     captured_request = CapturingRequest(third_party_request)
     ledger_balance = LedgerBalances(captured_request, MOCK_LOGGER, format_response)
-    indicator = "@user/name"
-    currency = "USD/EUR"
+    indicator = "@user name"
+    currency = "USD:EUR"
     ledger_balance.get_by_indicator(indicator, currency)
 
     assert captured_request.calls == [
