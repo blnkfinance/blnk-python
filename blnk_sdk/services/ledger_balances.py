@@ -71,10 +71,12 @@ class LedgerBalances:
             return handle_error(error, self._logger, self._format_response, "create")
 
     def get(self, id: str, options: Any = None) -> Any:
-        """GET balances/{id}[?from_source=true][&with_queued=true].
+        """GET balances/{id}[?from_source=true][&with_queued=true][&include=identity][&include=ledger].
 
         The `id` goes through path_segment: an empty or unsafe id returns
-        400 without a request.
+        400 without a request. `include` embeds the balance's `identity`
+        and/or `ledger` in the response. `from_source` is deprecated:
+        Core ignores it on this route (use `get_at`).
         """
         try:
             if options is not None:
@@ -88,6 +90,9 @@ class LedgerBalances:
                 params.append("from_source=true")
             if options is not None and is_truthy(_option(options, "with_queued")):
                 params.append("with_queued=true")
+            if options is not None:
+                for include in _option(options, "include") or ():
+                    params.append("include=" + percent_encode(include))
             if params:
                 endpoint += "?" + "&".join(params)
 

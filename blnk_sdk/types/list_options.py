@@ -2,8 +2,8 @@
 
 `limit` and `offset` travel as query parameters. Unset fields are omitted
 from the query string so Core can apply its per-route defaults (`limit=10`
-for ledgers and balances, `limit=20` for transactions; `offset=0` on all
-three).
+for ledgers and balances, `limit=20` for transactions and identities;
+`offset=0` on all four).
 """
 
 from __future__ import annotations
@@ -68,8 +68,9 @@ def list_endpoint(path: str, options: Any = None) -> tuple[Optional[str], str]:
 
 @dataclass
 class ListOptions(DTO):
-    """Optional pagination for `ledgers.list`, `ledger_balances.list`, and
-    `transactions.list`. None-valued fields are omitted from the wire."""
+    """Optional pagination for `ledgers.list`, `ledger_balances.list`,
+    `transactions.list`, and `identities.list`. None-valued fields are
+    omitted from the wire."""
 
     limit: Optional[int] = None
     offset: Optional[int] = None

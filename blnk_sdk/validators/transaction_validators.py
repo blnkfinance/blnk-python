@@ -548,6 +548,9 @@ def validate_create_transactions(data: Any) -> Optional[str]:
     if "allow_overdraft" in data and not isinstance(data["allow_overdraft"], bool):
         return "Allow overdraft must be a boolean if provided."
 
+    if "overdraft_limit" in data and not is_valid_number(data["overdraft_limit"]):
+        return "overdraft_limit must be a number if provided."
+
     if "meta_data" in data and not is_valid_meta_data(data["meta_data"]):
         return "meta_data must be a valid object if provided"  # note: no trailing period
 
@@ -588,6 +591,9 @@ def validate_update_transactions(data: Any) -> Optional[str]:
     if "dry_run" in data and not isinstance(data["dry_run"], bool):
         return "dry_run must be a boolean if provided."
 
+    if "reference" in data and not is_valid_string(data["reference"]):
+        return "reference must be a string if provided."
+
     allowed_fields = [
         "status",
         "amount",
@@ -595,6 +601,7 @@ def validate_update_transactions(data: Any) -> Optional[str]:
         "meta_data",
         "skip_queue",
         "dry_run",
+        "reference",
     ]
     for key in data:  # iterates in insertion order
         if key not in allowed_fields:

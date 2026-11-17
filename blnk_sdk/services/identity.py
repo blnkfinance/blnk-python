@@ -17,10 +17,11 @@ Path behavior notes:
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 from ..identity_serialization import serialize_identity_data
 from ..logger import handle_error
+from ..types.list_options import list_endpoint
 from ..uri_utils import endpoint_path
 from ..validators.identity_validators import (
     validate_detokenize_identity_data,
@@ -61,10 +62,16 @@ class Identity:
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "get")
 
-    def list(self) -> Any:
-        """GET identities."""
+    def list(self, options: Optional[Any] = None) -> Any:
+        """GET identities[?limit=&offset=]. Takes the same optional
+        ListOptions as the other list methods. Core defaults to limit=20,
+        offset=0 when query params are omitted; invalid pagination returns
+        400 without a request."""
         try:
-            return self._request("identities", None, "GET")
+            error, endpoint = list_endpoint("identities", options)
+            if error:
+                return self._format_response(400, error, None)
+            return self._request(endpoint, None, "GET")
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "list")
 

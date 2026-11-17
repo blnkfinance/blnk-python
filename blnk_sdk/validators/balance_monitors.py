@@ -17,7 +17,21 @@ from typing import Any, Optional
 from ..string_utils import is_valid_number, is_valid_operator, is_valid_string
 from ..types import DTO
 
-__all__ = ["validate_monitor_data", "validate_monitor_id"]
+__all__ = [
+    "validate_monitor_data",
+    "validate_monitor_id",
+    "validate_monitor_trigger",
+    "validate_update_monitor_request",
+]
+
+# Core's NormalizeTrigger accepts "" (its default, edge), "edge" and "level".
+_VALID_TRIGGERS = ("", "edge", "level")
+_TRIGGER_MESSAGE = 'trigger must be "edge" or "level" if provided'
+
+# Top-level keys Core reads on PUT balance-monitors/{id}. call_back_url is
+# left out on purpose: Core ignores it on update.
+_UPDATE_KEYS = ("balance_id", "description", "condition", "trigger")
+_UPDATE_CONDITION_KEYS = ("field", "operator", "value", "precision")
 
 
 def _object_view(data: Any) -> Optional[Any]:
@@ -78,7 +92,95 @@ def validate_monitor_data(data: Any) -> Optional[str]:
     if "call_back_url" in d and not is_valid_string(d["call_back_url"]):
         return "call_back_url must be a valid string if provided"
 
+    if "trigger" in d:
+        trigger_error = validate_monitor_trigger(d["trigger"])
+        if trigger_error:
+            return trigger_error
+
     # All validations passed
+    return None
+
+
+def validate_monitor_trigger(trigger: Any) -> Optional[str]:
+    """Validates a monitor trigger: "edge", "level", or "" (Core's default,
+    edge)."""
+    if not is_valid_string(trigger) or trigger not in _VALID_TRIGGERS:
+        return _TRIGGER_MESSAGE
+    return None
+
+
+def validate_update_monitor_request(data: Any) -> Optional[str]:
+    """Validates the body for BalanceMonitor.update_partial.
+
+    Every field is optional, because Core keeps whatever a PUT leaves out,
+    but at least one must be set. Unknown keys are rejected, including
+    `call_back_url`, which Core ignores on update. `condition.field` and
+    `condition.operator` may not be empty strings: Core reads an empty
+    field and operator sent with `value: 0` as "keep the stored
+    threshold", so the SDK never sends that shape.
+    """
+    if isinstance(data, list):
+        return "Data must be a valid object of type UpdateMonitorRequest"
+    d = _object_view(data)
+    if d is None:
+        return "Data must be a valid object of type UpdateMonitorRequest"
+
+    for key in d:
+        if key == "call_back_url":
+            return "call_back_url cannot be changed on update; Core ignores it"
+        if key not in _UPDATE_KEYS:
+            return f"unsupported update field: {key}"
+
+    if not d:
+        return "at least one field must be set to update a monitor"
+
+    if "balance_id" in d and (
+        not is_valid_string(d["balance_id"]) or d["balance_id"].strip() == ""
+    ):
+        return "balance_id must be a non-empty string if provided"
+
+    if "description" in d and not is_valid_string(d["description"]):
+        return "description must be a valid string if provided"
+
+    if "trigger" in d:
+        trigger_error = validate_monitor_trigger(d["trigger"])
+        if trigger_error:
+            return trigger_error
+
+    if "condition" in d:
+        condition_error = _validate_update_condition(d["condition"])
+        if condition_error:
+            return condition_error
+
+    return None
+
+
+def _validate_update_condition(condition: Any) -> Optional[str]:
+    if isinstance(condition, list):
+        return "condition must be a valid UpdateMonitorCondition object"
+    c = _object_view(condition)
+    if c is None:
+        return "condition must be a valid UpdateMonitorCondition object"
+
+    for key in c:
+        if key not in _UPDATE_CONDITION_KEYS:
+            return f"unsupported condition field: {key}"
+
+    if not c:
+        return "condition must set at least one field if provided"
+
+    if "field" in c and (not is_valid_string(c["field"]) or c["field"] == ""):
+        return "condition.field must be a non-empty string if provided"
+
+    if "operator" in c and not is_valid_operator(c["operator"]):
+        return "condition.operator must be one of >, <, =, !=, >=, <= if provided"
+
+    if "value" in c and not is_valid_number(c["value"]):
+        return "condition.value must be a number if provided"
+
+    if "precision" in c and not is_valid_number(c["precision"]):
+        return "condition.precision must be a number if provided"
+
     return None
 
 

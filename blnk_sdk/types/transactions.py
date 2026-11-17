@@ -77,6 +77,10 @@ class CreateTransactions(DTO):
     skip_queue: Optional[bool] = None
     atomic: Optional[bool] = None
     allow_overdraft: Optional[bool] = None
+    # How far the source may go below zero, in major units (Core multiplies
+    # it by precision). With allow_overdraft=True and no limit (or 0), the
+    # overdraft is unlimited.
+    overdraft_limit: Optional[Union[int, float]] = None
     # Preview the post without writing. Default: False. When True, Core
     # returns HTTP 200 and a TransactionPreview — not a posted transaction.
     dry_run: Optional[bool] = None
@@ -131,6 +135,11 @@ class UpdateTransactionStatus(DTO):
     skip_queue: Optional[bool] = None
     # Preview commit/void without settling the hold. Default: False.
     dry_run: Optional[bool] = None
+    # Idempotency key for this commit or void (Core 0.15.7+). Repeating a
+    # request with the same reference returns the original result instead
+    # of applying it again; reusing it with a different amount is a
+    # conflict.
+    reference: Optional[str] = None
 
 
 @dataclass(kw_only=True)
