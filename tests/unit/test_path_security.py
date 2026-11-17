@@ -12,10 +12,13 @@ URL normalization), not what the SDK meant to send.
 
 from __future__ import annotations
 
+import http.client
+import posixpath
 import threading
 from collections.abc import Callable, Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
+from urllib.parse import unquote
 
 import pytest
 
@@ -278,10 +281,20 @@ HOSTILE = [
 ]
 
 
+INDICATOR_METHOD = "ledger_balances.get_by_indicator"
+INDICATOR_ENCODED = {"?", "ldg_1?owner=x", "#", "ldg_1#frag", "\\"}
+
+
 def _hostile_cases() -> list[Any]:
     cases = []
     for name, call, _ in PATH_METHODS:
+        # Indicators and currencies may legitimately contain ? # \\ (Core
+        # accepts them and its route serves them once encoded); those are
+        # covered by the indicator tests below.
+        allowed = INDICATOR_ENCODED if name.startswith(INDICATOR_METHOD) else ()
         for value in HOSTILE:
+            if value in allowed:
+                continue
             cases.append(pytest.param(call, value, id=f"{name}-{value!r}"))
     for name, call in COLLECTION_METHODS:
         for value in HOSTILE:
@@ -337,9 +350,9 @@ def test_valid_id_with_space_is_escaped(server: _Server, base: str) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# The scanner's proof-of-concept calls, by name.
+# The attack calls that motivated this change, by name.
 
-SCANNER_POCS = [
+ATTACK_CALLS = [
     ("refund-to-search-reindex", lambda c: c.transactions.refund("../search/reindex")),
     ("identity-get-backup", lambda c: c.identity.get("../backup")),
     ("hooks-delete-api-key", lambda c: c.hooks.delete("../api-keys/api_key_victim")),
@@ -348,8 +361,8 @@ SCANNER_POCS = [
 
 
 @pytest.mark.parametrize("base", BASES)
-@pytest.mark.parametrize("call", [pytest.param(c, id=n) for n, c in SCANNER_POCS])
-def test_scanner_proofs_of_concept_send_nothing(
+@pytest.mark.parametrize("call", [pytest.param(c, id=n) for n, c in ATTACK_CALLS])
+def test_known_attack_calls_send_nothing(
     server: _Server, base: str, call: Callable[[Any], Any]
 ) -> None:
     server.clear()
@@ -385,7 +398,29 @@ def test_get_by_reference_escapes_slash_and_percent(server: _Server, base: str) 
 
 @pytest.mark.parametrize("base", BASES)
 @pytest.mark.parametrize(
-    "reference", [".", "..", "", "ref\r\nX-Injected: 1", "../backup", "a/./b"]
+    "reference",
+    [
+        ".",
+        "..",
+        "",
+        "ref\r\nX-Injected: 1",
+        "../backup",
+        "a/./b",
+        # Encoded and double-encoded dot segments and separators: a proxy
+        # and an upstream that each decode once must not be able to turn
+        # any of these into a dot segment.
+        "%2e%2e",
+        "%2E%2e",
+        "%2e%2e%2fsecret",
+        "%2e%2e%2f%2e%2e%2fsecret",
+        "%252e%252e",
+        "%252E%252e%252Fsecret",
+        "%25252e%25252e%25252fsecret",
+        "a%2F..%2Fb",
+        "a%2f%2e%2e%2fb",
+        "..%5Cbackup",
+        "%2e%2e%5csecret",
+    ],
 )
 def test_get_by_reference_rejects_dot_segments(
     server: _Server, base: str, reference: str
@@ -399,25 +434,6 @@ def test_get_by_reference_rejects_dot_segments(
 
     assert server.received == []
     assert response.status == 400
-
-
-@pytest.mark.parametrize("base", BASES)
-def test_get_by_reference_keeps_encoded_dots_literal(
-    server: _Server, base: str
-) -> None:
-    """A reference that is literally "%2e%2e" is escaped to "%252e%252e":
-    one decode gives back the literal text, never a dot segment."""
-    server.clear()
-    client = _client(server, base)
-    try:
-        response = client.transactions.get_by_reference("%2e%2e")
-    finally:
-        client.close()
-
-    assert response.status == 200
-    assert [path for _, path, _ in server.received] == [
-        base + "transactions/reference/%252e%252e"
-    ]
 
 
 # --------------------------------------------------------------------------- #
@@ -436,6 +452,10 @@ def test_get_by_reference_keeps_encoded_dots_literal(
         "ledgers/./x",
         "ledgers/..\\backup",
         "../backup?x=1",
+        "transactions/reference/%252e%252e%252fsecret",
+        "transactions/reference/%252E%252E/x",
+        "transactions/reference/%25252e%25252e/x",
+        "transactions/reference/a%252f%252e%252e%252fb",
     ],
 )
 def test_client_refuses_dot_segment_endpoints(
@@ -450,3 +470,207 @@ def test_client_refuses_dot_segment_endpoints(
 
     assert server.received == []
     assert response.status == 400
+
+
+# --------------------------------------------------------------------------- #
+# Balance indicators. Core's lookup route matches on the decoded path, so an
+# indicator containing "/" can never be found there (Core returns 404); the
+# SDK returns 400 instead. Every other character Core accepts when creating
+# an indicator must still reach Core intact.
+
+
+@pytest.mark.parametrize("base", BASES)
+@pytest.mark.parametrize(
+    "indicator,wire",
+    [
+        ("@World", "%40World"),
+        ("@50%off", "%4050%25off"),
+        ("@a?b", "%40a%3Fb"),
+        ("@a#b", "%40a%23b"),
+        ("@a\\b", "%40a%5Cb"),
+        ("@a%2fb", "%40a%252fb"),
+        ("@a..b", "%40a..b"),
+    ],
+)
+def test_get_by_indicator_sends_core_accepted_indicators(
+    server: _Server, base: str, indicator: str, wire: str
+) -> None:
+    server.clear()
+    client = _client(server, base)
+    try:
+        response = client.ledger_balances.get_by_indicator(indicator, "USD")
+    finally:
+        client.close()
+
+    assert response.status == 200
+    assert [path for _, path, _ in server.received] == [
+        base + f"balances/indicator/{wire}/currency/USD"
+    ]
+
+
+@pytest.mark.parametrize("base", BASES)
+@pytest.mark.parametrize(
+    "indicator,currency",
+    [
+        ("@user/name", "USD"),
+        ("@World", "USD/EUR"),
+        ("@x%2f..%2f..%2fsecret", "USD"),
+        ("@x%252f%252e%252e", "USD"),
+        ("..", "USD"),
+        ("@World", "%2e%2e"),
+        ("@World\r\n", "USD"),
+        ("", "USD"),
+    ],
+)
+def test_get_by_indicator_rejects_unroutable_or_unsafe_values(
+    server: _Server, base: str, indicator: str, currency: str
+) -> None:
+    server.clear()
+    client = _client(server, base)
+    try:
+        response = client.ledger_balances.get_by_indicator(indicator, currency)
+    finally:
+        client.close()
+
+    assert server.received == []
+    assert response.status == 400
+
+
+# --------------------------------------------------------------------------- #
+# A real decoding chain: requests go to a proxy that strips "/proxy/",
+# percent-decodes the path ONCE and forwards it verbatim to an upstream that
+# decodes again and resolves dot segments, the way a lenient server would.
+# Whatever the SDK sends, the upstream must only ever see paths under the
+# resource the method targets.
+
+
+class _UpstreamHandler(BaseHTTPRequestHandler):
+    def _record(self) -> None:
+        raw = self.path.split("?", 1)[0]
+        resolved = posixpath.normpath(unquote(raw).replace("\\", "/"))
+        self.server.received.append(resolved)  # type: ignore[attr-defined]
+        body = b"{}"
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    do_GET = do_POST = do_PUT = do_DELETE = _record
+
+    def log_message(self, *args: Any) -> None:
+        pass
+
+
+class _DecodingProxyHandler(BaseHTTPRequestHandler):
+    def _forward(self) -> None:
+        length = int(self.headers.get("Content-Length") or 0)
+        body = self.rfile.read(length) if length else None
+        path, _, query = self.path.partition("?")
+        assert path.startswith("/proxy/")
+        once = unquote(path[len("/proxy") :])
+        target = once + ("?" + query if query else "")
+        conn = http.client.HTTPConnection(*self.server.upstream)  # type: ignore[attr-defined]
+        # skip_host / raw putrequest keeps the decoded path byte-for-byte.
+        conn.putrequest(self.command, target, skip_accept_encoding=True)
+        conn.putheader("Content-Length", str(len(body or b"")))
+        conn.endheaders(body)
+        upstream = conn.getresponse()
+        data = upstream.read()
+        conn.close()
+        self.send_response(upstream.status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    do_GET = do_POST = do_PUT = do_DELETE = _forward
+
+    def log_message(self, *args: Any) -> None:
+        pass
+
+
+@pytest.fixture(scope="module")
+def decoding_chain() -> Iterator[tuple[str, list[str]]]:
+    upstream = ThreadingHTTPServer(("127.0.0.1", 0), _UpstreamHandler)
+    upstream.received = []  # type: ignore[attr-defined]
+    proxy = ThreadingHTTPServer(("127.0.0.1", 0), _DecodingProxyHandler)
+    proxy.upstream = upstream.server_address  # type: ignore[attr-defined]
+    threads = [
+        threading.Thread(target=srv.serve_forever, daemon=True)
+        for srv in (upstream, proxy)
+    ]
+    for thread in threads:
+        thread.start()
+    yield (
+        f"http://127.0.0.1:{proxy.server_address[1]}/proxy/",
+        upstream.received,  # type: ignore[attr-defined]
+    )
+    for srv in (proxy, upstream):
+        srv.shutdown()
+        srv.server_close()
+
+
+DOUBLE_ENCODED = [
+    "%2e%2e%2f%2e%2e%2fsecret",
+    "%252e%252e%252f%252e%252e%252fsecret",
+    "%252E%252E%252F%252E%252E%252Fsecret",
+    "x%2f%2e%2e%2f%2e%2e%2f%2e%2e%2fsecret",
+    "%2e%2e%5c%2e%2e%5csecret",
+]
+
+
+@pytest.mark.parametrize("reference", DOUBLE_ENCODED)
+def test_decoding_proxy_cannot_resolve_reference_outside_resource(
+    decoding_chain: tuple[str, list[str]], reference: str
+) -> None:
+    base_url, received = decoding_chain
+    received.clear()
+    client = blnk_init(
+        "test-key",
+        BlnkClientOptions(base_url=base_url, retry_count=1, logger=_SilentLogger()),
+    )
+    try:
+        client.transactions.get_by_reference(reference)
+    finally:
+        client.close()
+
+    assert all(path.startswith("/transactions/reference/") for path in received)
+
+
+@pytest.mark.parametrize(
+    "indicator", ["@x%2f..%2f..%2fsecret", "@x%252f%252e%252e%252fs"]
+)
+def test_decoding_proxy_cannot_resolve_indicator_outside_resource(
+    decoding_chain: tuple[str, list[str]], indicator: str
+) -> None:
+    base_url, received = decoding_chain
+    received.clear()
+    client = blnk_init(
+        "test-key",
+        BlnkClientOptions(base_url=base_url, retry_count=1, logger=_SilentLogger()),
+    )
+    try:
+        client.ledger_balances.get_by_indicator(indicator, "USD")
+    finally:
+        client.close()
+
+    assert all(path.startswith("/balances/indicator/") for path in received)
+
+
+def test_decoding_proxy_still_serves_valid_reference(
+    decoding_chain: tuple[str, list[str]],
+) -> None:
+    base_url, received = decoding_chain
+    received.clear()
+    client = blnk_init(
+        "test-key",
+        BlnkClientOptions(base_url=base_url, retry_count=1, logger=_SilentLogger()),
+    )
+    try:
+        response = client.transactions.get_by_reference("order-2025-001")
+    finally:
+        client.close()
+
+    assert response.status == 200
+    assert received == ["/transactions/reference/order-2025-001"]

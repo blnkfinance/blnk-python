@@ -9,7 +9,7 @@ so "." and ".." survive it as dot segments.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 from urllib.parse import quote, unquote
 
 from .errors import InvalidPathSegmentError
@@ -66,8 +66,7 @@ def path_segment(value: Any) -> str:
     """Return `value` percent-encoded for use as ONE path segment.
 
     Raises InvalidPathSegmentError when the value is not a string (or
-    int), is
-    empty, is a dot segment ("." or ".."), or contains a character that
+    int), is empty, is a dot segment ("." or ".."), or contains a character that
     would add a segment, start a query or fragment, or carry an encoding a
     server might decode into one of those (/ \\ ? # %), or a control
     character.
@@ -84,13 +83,37 @@ def path_segment(value: Any) -> str:
 
 def free_form_path_segment(value: Any) -> str:
     """Like `path_segment`, for free-form values such as transaction
-    references: "/" and "%" are escaped rather than rejected, but empty
-    values, "." / "..", and control characters are still rejected (escaping
-    leaves "." and ".." unchanged)."""
+    references: "/", "%", "?", "#" and "\\" are percent-encoded rather than
+    rejected. Still rejected: empty values, control characters, and any
+    value that has a "." or ".." segment once FULLY percent-decoded — so
+    "..", "../x", "%2e%2e%2fsecret" and "%252e%252e" are all refused, even
+    behind a proxy and server that each decode once."""
     value = _as_text(value)
     _check_not_dot_or_empty(value)
     _check_no_control_chars(value)
+    if has_dot_segment(value):
+        raise InvalidPathSegmentError(
+            f"invalid path segment {value!r}: "
+            "must not contain '.' or '..' segments, encoded or not"
+        )
     return percent_encode(value)
+
+
+def indicator_path_segment(value: Any) -> str:
+    """Path segment for balance indicators and currencies.
+
+    Core's `balances/indicator/:indicator/currency/:currency` route matches
+    on the DECODED path, so an indicator with "/" (even as "%2F") can never
+    be looked up there — Core answers 404 — and it is rejected here with a
+    400 instead. Every other character Core accepts at creation ("%", "?",
+    "#", "\\", ...) is percent-encoded and reaches Core intact. Otherwise
+    the same rules as `free_form_path_segment`."""
+    value = _as_text(value)
+    if "/" in value:
+        raise InvalidPathSegmentError(
+            f"invalid path segment {value!r}: must not contain /"
+        )
+    return free_form_path_segment(value)
 
 
 def endpoint_path(template: str, *segments: Any) -> str:
@@ -100,10 +123,31 @@ def endpoint_path(template: str, *segments: Any) -> str:
     return template.format(*(path_segment(segment) for segment in segments))
 
 
-def has_dot_segment(path: str) -> bool:
-    """True when the percent-decoded `path` contains a "." or ".." segment.
+_MAX_DECODE_ROUNDS = 8
 
-    Decoding first means "%2e%2e" is caught the same way as "..". Both "/"
-    and "\\" count as separators, since some servers treat them alike."""
-    decoded = unquote(path).replace("\\", "/")
+
+def _fully_decoded(path: str) -> Optional[str]:
+    """Percent-decode `path` until it stops changing. None when it is still
+    changing after _MAX_DECODE_ROUNDS (treated as unsafe by callers)."""
+    for _ in range(_MAX_DECODE_ROUNDS):
+        decoded = unquote(path)
+        if decoded == path:
+            return path
+        path = decoded
+    return None
+
+
+def has_dot_segment(path: str) -> bool:
+    """True when `path`, percent-decoded until stable, contains a "." or
+    ".." segment.
+
+    Decoding repeatedly means "%2e%2e" and the double-encoded "%252e%252e"
+    are caught the same way as "..", so a proxy and an upstream server that
+    each decode once still cannot resolve a hidden dot segment. Both "/"
+    and "\\" count as separators, since some servers treat them alike. A
+    path that has not stabilised after several rounds counts as unsafe."""
+    decoded = _fully_decoded(path)
+    if decoded is None:
+        return True
+    decoded = decoded.replace("\\", "/")
     return any(segment in (".", "..") for segment in decoded.split("/"))

@@ -19,7 +19,7 @@ from ..coercion import format_number, is_truthy
 from ..logger import handle_error
 from ..types import DTO
 from ..types.list_options import list_endpoint
-from ..uri_utils import endpoint_path, percent_encode
+from ..uri_utils import endpoint_path, indicator_path_segment, percent_encode
 from ..validators.ledger_balance import (
     validate_create_balance_snapshot,
     validate_create_ledger_balance,
@@ -109,16 +109,20 @@ class LedgerBalances:
 
     def get_by_indicator(self, indicator: str, currency: str) -> Any:
         """GET balances/indicator/{indicator}/currency/{currency} — both
-        segments are validated and encoded by path_segment."""
+        segments go through indicator_path_segment: percent-encoded, with
+        "/" rejected (400) because Core's route matches on the decoded path
+        and can never serve an indicator containing "/". Look such a
+        balance up by balance_id with `get` instead."""
         try:
             error = validate_get_by_indicator(indicator, currency)
             if error:
                 return self._format_response(400, error, None)
 
             return self._request(
-                endpoint_path(
-                    "balances/indicator/{}/currency/{}", indicator, currency
-                ),
+                "balances/indicator/"
+                + indicator_path_segment(indicator)
+                + "/currency/"
+                + indicator_path_segment(currency),
                 None,
                 "GET",
             )
