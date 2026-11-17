@@ -599,11 +599,15 @@ def validate_update_transactions(data: Any) -> Optional[str]:
         return "dry_run must be a boolean if provided."
 
     # An empty or whitespace-only reference is not a usable idempotency key.
-    # Leave the key out to commit or void without one.
-    if "reference" in data and (
-        not is_valid_string(data["reference"]) or data["reference"].strip() == ""
-    ):
-        return "reference must be a non-empty string if provided."
+    # Leave the key out to commit or void without one. Core compares the key
+    # exactly, so "ref" and "ref " would be two different keys: reject
+    # leading or trailing whitespace rather than trimming it silently.
+    if "reference" in data:
+        reference = data["reference"]
+        if not is_valid_string(reference) or reference.strip() == "":
+            return "reference must be a non-empty string if provided."
+        if reference != reference.strip():
+            return "reference must not have leading or trailing whitespace."
 
     allowed_fields = [
         "status",

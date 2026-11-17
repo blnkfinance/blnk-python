@@ -350,6 +350,35 @@ def test_update_status_rejects_blank_or_non_string_reference(
     assert transport.calls == []
 
 
+@pytest.mark.parametrize("status", ["commit", "void"])
+@pytest.mark.parametrize("reference", ["ref ", " ref", "\tref", "ref\n", " ref "])
+def test_update_status_rejects_padded_reference(status: str, reference: str) -> None:
+    transport = RecordingTransport()
+    blnk = _client(transport)
+
+    response = blnk.transactions.update_status(
+        "txn_1", {"status": status, "reference": reference}
+    )
+
+    assert response.status == 400
+    assert (
+        response.message == "reference must not have leading or trailing whitespace."
+    )
+    assert transport.calls == []
+
+
+def test_update_status_keeps_inner_whitespace_in_reference() -> None:
+    transport = RecordingTransport()
+    blnk = _client(transport)
+
+    response = blnk.transactions.update_status(
+        "txn_1", {"status": "commit", "reference": "order 42 commit"}
+    )
+
+    assert response.status == 200
+    assert transport.calls[0][2]["reference"] == "order 42 commit"
+
+
 # --------------------------------------------------------------------------- #
 # Gap 4: overdraft_limit on create transaction
 
