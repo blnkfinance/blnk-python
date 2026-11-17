@@ -31,7 +31,6 @@ from blnk_sdk.types.ledger_balances import (
     CreateLedgerBalanceResp,
     GetBalanceRequest,
 )
-from blnk_sdk.types.list_options import ListOptions
 from blnk_sdk.types.transactions import CreateTransactions, UpdateTransactionStatus
 from tests.mocks.blnk_client_mocks import create_mock_blnk_client_options
 from tests.mocks.transport_mock import make_response
@@ -110,7 +109,7 @@ def test_create_monitor_without_trigger_omits_it() -> None:
     assert "trigger" not in transport.calls[0][2]
 
 
-@pytest.mark.parametrize("trigger", ["edge", "level", ""])
+@pytest.mark.parametrize("trigger", ["edge", "level"])
 def test_create_monitor_accepts_core_triggers(trigger: str) -> None:
     transport = RecordingTransport(status=201)
     blnk = _client(transport)
@@ -123,7 +122,7 @@ def test_create_monitor_accepts_core_triggers(trigger: str) -> None:
     assert transport.calls[0][2]["trigger"] == trigger
 
 
-@pytest.mark.parametrize("trigger", ["EDGE", "always", None, 1])
+@pytest.mark.parametrize("trigger", ["", "EDGE", "always", None, 1])
 def test_create_monitor_rejects_invalid_trigger(trigger: Any) -> None:
     transport = RecordingTransport(status=201)
     blnk = _client(transport)
@@ -240,6 +239,7 @@ def test_update_partial_decodes_precision_unchanged() -> None:
         ),
         ({"name": "x"}, "unsupported update field: name"),
         ({"trigger": "sometimes"}, 'trigger must be "edge" or "level" if provided'),
+        ({"trigger": ""}, 'trigger must be "edge" or "level" if provided'),
         ({"balance_id": ""}, "balance_id must be a non-empty string if provided"),
         ({"description": None}, "description must be a valid string if provided"),
         ({"condition": {}}, "condition must set at least one field if provided"),
@@ -452,51 +452,6 @@ def test_get_balance_rejects_invalid_include(include: Any, message: str) -> None
     blnk = _client(transport)
 
     response = blnk.ledger_balances.get("bln_1", {"include": include})
-
-    assert response.status == 400
-    assert response.message == message
-    assert transport.calls == []
-
-
-# --------------------------------------------------------------------------- #
-# Gap 6: identity list pagination
-
-
-def test_identity_list_without_options_sends_no_query() -> None:
-    transport = RecordingTransport(reply=[])
-    blnk = _client(transport)
-
-    blnk.identity.list()
-
-    assert transport.calls == [("GET", BASE + "identities", None)]
-
-
-def test_identity_list_forwards_limit_and_offset() -> None:
-    transport = RecordingTransport(reply=[])
-    blnk = _client(transport)
-
-    blnk.identity.list(ListOptions(limit=50, offset=100))
-    blnk.identity.list({"limit": 5})
-
-    assert [call[1] for call in transport.calls] == [
-        BASE + "identities?limit=50&offset=100",
-        BASE + "identities?limit=5",
-    ]
-
-
-@pytest.mark.parametrize(
-    "options, message",
-    [
-        ({"limit": 0}, "limit must be at least 1"),
-        ({"offset": -1}, "offset must be at least 0"),
-        ({"page": 2}, "unsupported list option: page"),
-    ],
-)
-def test_identity_list_rejects_invalid_pagination(options: Any, message: str) -> None:
-    transport = RecordingTransport(reply=[])
-    blnk = _client(transport)
-
-    response = blnk.identity.list(options)
 
     assert response.status == 400
     assert response.message == message

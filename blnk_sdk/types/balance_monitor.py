@@ -105,7 +105,8 @@ class UpdateMonitorRequest(DTO):
     """Body for `BalanceMonitor.update_partial` (`PUT balance-monitors/{id}`).
 
     Core 0.15.9 keeps every field a PUT leaves out, so set only what should
-    change. `description=""` clears the description. There is no
+    change. Older Core writes every column, so do not send a partial body
+    to Core before 0.15.9. `description=""` clears the description. There is no
     `call_back_url`: Core ignores it on update.
     """
 

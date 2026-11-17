@@ -119,6 +119,11 @@ class BalanceMonitor:
         ignores it on update. The response data is
         `{"message": ..., "precision_unchanged": true}` (the flag only when
         Core kept the stored precision); see UpdateMonitorResp.
+
+        Requires Blnk Core 0.15.9 or later. Older Core writes every column
+        on PUT, so an omitted `value` becomes 0 and a body without
+        `balance_id` or `condition` fails. Against older Core, use `update`
+        with the full monitor.
         """
         try:
             endpoint = endpoint_path("balance-monitors/{}", id)

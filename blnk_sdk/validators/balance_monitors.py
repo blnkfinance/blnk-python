@@ -24,8 +24,10 @@ __all__ = [
     "validate_update_monitor_request",
 ]
 
-# Core's NormalizeTrigger accepts "" (its default, edge), "edge" and "level".
-_VALID_TRIGGERS = ("", "edge", "level")
+# The public contract is "edge" or "level"; omit the key for Core's default
+# (edge). An explicit "" is rejected even though Core happens to read it as
+# edge, so callers do not depend on undocumented behaviour.
+_VALID_TRIGGERS = ("edge", "level")
 _TRIGGER_MESSAGE = 'trigger must be "edge" or "level" if provided'
 
 # Top-level keys Core reads on PUT balance-monitors/{id}. call_back_url is
@@ -102,8 +104,8 @@ def validate_monitor_data(data: Any) -> Optional[str]:
 
 
 def validate_monitor_trigger(trigger: Any) -> Optional[str]:
-    """Validates a monitor trigger: "edge", "level", or "" (Core's default,
-    edge)."""
+    """Validates a monitor trigger: "edge" or "level". To get Core's
+    default (edge), leave the key out instead of sending ""."""
     if not is_valid_string(trigger) or trigger not in _VALID_TRIGGERS:
         return _TRIGGER_MESSAGE
     return None

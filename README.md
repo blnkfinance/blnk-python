@@ -120,9 +120,9 @@ results = blnk.search.multi_search({
 transaction_hits = results.data["results"][0]["hits"]
 ```
 
-Page through ledgers, balances, transactions, or identities (Core defaults to
-`offset=0` and a `limit` of `10`, or `20` for transactions and identities). Invalid
-`limit`/`offset` is rejected client-side with `400` before any request is made:
+Page through ledgers, balances, or transactions (Core defaults to `offset=0` and a
+`limit` of `10`, or `20` for transactions). Invalid `limit`/`offset` is rejected
+client-side with `400` before any request is made:
 
 ```python
 from blnk_sdk.types.list_options import ListOptions
@@ -133,7 +133,6 @@ next_page = blnk.ledgers.list({"limit": 10, "offset": 10})
 
 usd_balances = blnk.ledger_balances.list({"limit": 50})
 recent_transactions = blnk.transactions.list({"limit": 100})
-identities = blnk.identity.list({"limit": 50, "offset": 0})
 
 monitors_for_balance = blnk.balance_monitor.list_by_balance_id(
     balance.data["balance_id"]
@@ -174,8 +173,9 @@ monitor = blnk.balance_monitor.create({
     "trigger": "edge",
 })
 
-# Core 0.15.9 keeps any field an update leaves out, so send only what changes.
-# The callback URL cannot be changed after creation.
+# Core 0.15.9+ keeps any field an update leaves out, so send only what changes.
+# Older Core writes every field (an omitted value becomes 0): use update() with
+# the full monitor there. The callback URL cannot be changed after creation.
 updated = blnk.balance_monitor.update_partial(
     monitor.data["monitor_id"], {"condition": {"value": 50}}
 )
