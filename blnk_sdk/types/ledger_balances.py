@@ -12,11 +12,23 @@ from dataclasses import dataclass
 from typing import Any, List, Optional, Union
 
 from .base import DTO
+from .identity import IdentityDataResponse
+from .ledger import CreateLedgerResp
 
 # Allocation strategy: "FIFO", "LIFO" or "PROPORTIONAL". Modeled as a plain
 # str (not an enum) so invalid values stay representable and are rejected by
 # the validator rather than at construction.
 AllocationStrategy = str
+
+# A related record that `GET balances/{id}` can embed, passed in
+# GetBalanceRequest.include. Modeled as a plain str so invalid values stay
+# representable and are rejected by the validator.
+BalanceInclude = str
+
+# Embeds the balance's identity as `identity` on the response.
+BALANCE_INCLUDE_IDENTITY: BalanceInclude = "identity"
+# Embeds the balance's ledger as `ledger` on the response.
+BALANCE_INCLUDE_LEDGER: BalanceInclude = "ledger"
 
 
 @dataclass(kw_only=True)
@@ -47,7 +59,9 @@ class CreateLedgerBalanceResp(DTO):
     inflight_credit_balance: Optional[Union[int, float]] = None
     debit_balance: Optional[Union[int, float]] = None
     inflight_debit_balance: Optional[Union[int, float]] = None
-    # Removed from Core 0.15.0 balance responses — kept optional.
+    # Deprecated: Core 0.15.0 removed this column (#313) and never returns
+    # it. Kept so existing code that reads it does not break; it is always
+    # None against current Core.
     currency_multiplier: Optional[Union[int, float]] = None
     ledger_id: Optional[str] = None
     identity_id: Optional[str] = None
@@ -60,6 +74,12 @@ class CreateLedgerBalanceResp(DTO):
     track_fund_lineage: Optional[bool] = None
     allocation_strategy: Optional[AllocationStrategy] = None
     meta_data: Optional[Any] = None
+    # Set only when requested with GetBalanceRequest.include. from_dict
+    # leaves these as the raw dicts Core returned; use
+    # IdentityDataResponse.from_dict / CreateLedgerResp.from_dict for typed
+    # access.
+    identity: Optional[Union[IdentityDataResponse, dict]] = None
+    ledger: Optional[Union[CreateLedgerResp, dict]] = None
 
 
 @dataclass
@@ -132,11 +152,15 @@ class HistoricalBalanceDetails(DTO):
 class GetBalanceRequest(DTO):
     """Options for `GET balances/{balance_id}`."""
 
-    # Reconstruct balance from transactions instead of snapshots when True.
-    # Loosely typed: any value is accepted (e.g. the string "true").
+    # Deprecated: `GET balances/{id}` ignores from_source; only
+    # `GET balances/{id}/at` reads it (see GetBalanceAtRequest and
+    # `ledger_balances.get_at`). Still sent when set, for compatibility.
     from_source: Optional[Any] = None
     # Include queued credit/debit balances when True.
     with_queued: Optional[Any] = None
+    # Related records to embed: BALANCE_INCLUDE_IDENTITY and/or
+    # BALANCE_INCLUDE_LEDGER. Each is sent as its own `include=` parameter.
+    include: Optional[List[BalanceInclude]] = None
 
 
 @dataclass

@@ -13,7 +13,11 @@ from typing import Any, Callable
 from ..logger import handle_error
 from ..string_utils import is_valid_string
 from ..uri_utils import endpoint_path
-from ..validators.balance_monitors import validate_monitor_data, validate_monitor_id
+from ..validators.balance_monitors import (
+    validate_monitor_data,
+    validate_monitor_id,
+    validate_update_monitor_request,
+)
 
 
 def _serialize(data: Any) -> Any:
@@ -88,7 +92,13 @@ class BalanceMonitor:
 
     def update(self, id: str, data: Any) -> Any:
         """PUT balance-monitors/{id} — id checked by path_segment first, then
-        the body is validated."""
+        the body is validated as a full MonitorData.
+
+        Deprecated: prefer `update_partial`. Core 0.15.9 keeps any field a
+        PUT omits, so a full MonitorData is no longer needed, and Core
+        replies with `{message, precision_unchanged}`, not a monitor. This
+        method keeps working unchanged.
+        """
         try:
             endpoint = endpoint_path("balance-monitors/{}", id)
             payload = _serialize(data)
@@ -98,6 +108,34 @@ class BalanceMonitor:
             return self._request(endpoint, payload, "PUT")
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "update")
+
+    def update_partial(self, id: str, data: Any) -> Any:
+        """PUT balance-monitors/{id} with only the fields that are set.
+
+        `data` is an UpdateMonitorRequest or a dict with any of
+        `balance_id`, `description`, `condition` (`field`, `operator`,
+        `value`, `precision`) and `trigger`. Core 0.15.9 keeps every field
+        the request leaves out. `call_back_url` is rejected because Core
+        ignores it on update. The response data is
+        `{"message": ..., "precision_unchanged": true}` (the flag only when
+        Core kept the stored precision); see UpdateMonitorResp.
+
+        Requires Blnk Core 0.15.9 or later. Older Core writes every column
+        on PUT, so an omitted `value` becomes 0 and a body without
+        `balance_id` or `condition` fails. Against older Core, use `update`
+        with the full monitor.
+        """
+        try:
+            endpoint = endpoint_path("balance-monitors/{}", id)
+            payload = _serialize(data)
+            validator_response = validate_update_monitor_request(payload)
+            if validator_response:
+                return self._format_response(400, validator_response, None)
+            return self._request(endpoint, payload, "PUT")
+        except Exception as error:
+            return handle_error(
+                error, self._logger, self._format_response, "updatePartial"
+            )
 
     def delete(self, id: str) -> Any:
         """DELETE balance-monitors/{id} — id validated and encoded by

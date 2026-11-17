@@ -139,6 +139,61 @@ monitors_for_balance = blnk.balance_monitor.list_by_balance_id(
 )
 ```
 
+`identity.list()` takes no pagination. Core 0.15.9 reads `limit` and `offset` on
+`GET /identities` only when filter parameters are present, so a plain list returns
+every identity. To page identities, use the filter endpoint with `limit` and `offset`
+in the body (an empty `filters` list matches every identity):
+
+```python
+page = blnk.search.filter(
+    {"filters": [], "limit": 50, "offset": 0, "sort_by": "created_at", "sort_order": "desc"},
+    "identities",
+)
+```
+
+Get a balance with its identity and ledger embedded (`include` is sent as repeated
+`include=` query parameters):
+
+```python
+expanded = blnk.ledger_balances.get(
+    balance.data["balance_id"], {"include": ["identity", "ledger"]}
+)
+print(expanded.data["ledger"]["name"])
+```
+
+Commit or void an inflight transaction idempotently. Repeating the call with the same
+`reference` returns the original result instead of applying it again:
+
+```python
+blnk.transactions.update_status(
+    inflight_transaction_id,
+    {"status": "commit", "reference": "commit_ref_001"},
+)
+```
+
+Watch a balance. A monitor's `value` is in major units: Core stores
+`value × precision`, so `value=100` with `precision=100` is $100.00. `trigger` is
+`"edge"` (Core's default: alert once each time the condition becomes true) or `"level"`
+(alert on every transaction while it holds):
+
+```python
+monitor = blnk.balance_monitor.create({
+    "balance_id": balance.data["balance_id"],
+    "condition": {"field": "balance", "operator": "<", "value": 100, "precision": 100},
+    "description": "Balance under $100",
+    "call_back_url": "https://example.com/webhooks/blnk",
+    "trigger": "edge",
+})
+
+# Core 0.15.9+ keeps any field an update leaves out, so send only what changes.
+# Older Core writes every field (an omitted value becomes 0): use update() with
+# the full monitor there. The callback URL cannot be changed after creation.
+updated = blnk.balance_monitor.update_partial(
+    monitor.data["monitor_id"], {"condition": {"value": 50}}
+)
+print(updated.data)  # {"message": "BalanceMonitor updated successfully"}
+```
+
 The client is a context manager — `with blnk_init(...) as blnk:` closes the underlying
 `requests.Session` on exit.
 

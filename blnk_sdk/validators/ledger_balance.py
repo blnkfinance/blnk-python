@@ -18,6 +18,9 @@ from ..string_utils import is_valid_string
 from ..types import DTO
 from .common import is_valid_meta_data  # re-exported via __all__
 
+# Values Core's GET balances/{id} understands in `include`.
+_BALANCE_INCLUDES = ("identity", "ledger")
+
 __all__ = [
     "ALLOCATION_STRATEGIES",
     "is_valid_meta_data",
@@ -153,6 +156,14 @@ def validate_get_balance(data: Any) -> Optional[str]:
 
     if "with_queued" in d and not isinstance(d["with_queued"], bool):
         return "with_queued must be a boolean if provided"
+
+    if "include" in d:
+        include = d["include"]
+        if not isinstance(include, (list, tuple)):
+            return "include must be a list if provided"
+        for item in include:
+            if item not in _BALANCE_INCLUDES:
+                return 'include values must be "identity" or "ledger"'
 
     return None
 

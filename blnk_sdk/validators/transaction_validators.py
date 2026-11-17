@@ -548,6 +548,16 @@ def validate_create_transactions(data: Any) -> Optional[str]:
     if "allow_overdraft" in data and not isinstance(data["allow_overdraft"], bool):
         return "Allow overdraft must be a boolean if provided."
 
+    # Core reads a negative limit as "no room at all" and rejects the post
+    # as TXN_INSUFFICIENT_FUNDS; 0 means no limit. NaN and the infinities
+    # cannot be sent as JSON numbers.
+    if "overdraft_limit" in data:
+        overdraft_limit = data["overdraft_limit"]
+        if not is_valid_number(overdraft_limit) or not math.isfinite(overdraft_limit):
+            return "overdraft_limit must be a finite number if provided."
+        if overdraft_limit < 0:
+            return "overdraft_limit must be 0 or greater if provided."
+
     if "meta_data" in data and not is_valid_meta_data(data["meta_data"]):
         return "meta_data must be a valid object if provided"  # note: no trailing period
 
@@ -588,6 +598,17 @@ def validate_update_transactions(data: Any) -> Optional[str]:
     if "dry_run" in data and not isinstance(data["dry_run"], bool):
         return "dry_run must be a boolean if provided."
 
+    # An empty or whitespace-only reference is not a usable idempotency key.
+    # Leave the key out to commit or void without one. Core compares the key
+    # exactly, so "ref" and "ref " would be two different keys: reject
+    # leading or trailing whitespace rather than trimming it silently.
+    if "reference" in data:
+        reference = data["reference"]
+        if not is_valid_string(reference) or reference.strip() == "":
+            return "reference must be a non-empty string if provided."
+        if reference != reference.strip():
+            return "reference must not have leading or trailing whitespace."
+
     allowed_fields = [
         "status",
         "amount",
@@ -595,6 +616,7 @@ def validate_update_transactions(data: Any) -> Optional[str]:
         "meta_data",
         "skip_queue",
         "dry_run",
+        "reference",
     ]
     for key in data:  # iterates in insertion order
         if key not in allowed_fields:
