@@ -7,6 +7,7 @@ import sys
 from typing import Any, Callable
 
 from .api_response import ApiResponse
+from .errors import InvalidPathSegmentError
 from .safe_log_meta import safe_log_meta
 
 
@@ -57,7 +58,14 @@ def handle_error(
     reporting name, e.g. "createMatchingRule"). Some services intentionally
     report one method's errors under another method's name (BalanceMonitors
     .list logs under "get"), and callers may match on these exact strings.
+
+    An InvalidPathSegmentError (a caller-supplied id that cannot be a path
+    segment) is a validation failure, not an unexpected error: it maps to
+    400 with its message and is not logged, like the other 400s services
+    return before sending a request.
     """
+    if isinstance(error, InvalidPathSegmentError):
+        return format_response(400, str(error), None)
     logger.error(fn_name, *safe_log_meta(error))
     if isinstance(error, Exception):
         return format_response(500, str(error), None)

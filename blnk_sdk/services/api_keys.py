@@ -16,7 +16,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from ..logger import handle_error
-from ..uri_utils import percent_encode
+from ..uri_utils import endpoint_path, percent_encode
 from ..validators.api_key_validators import (
     validate_create_api_key_data,
     validate_delete_api_key_options,
@@ -86,8 +86,8 @@ class ApiKeys:
             return handle_error(error, self._logger, self._format_response, "list")
 
     def delete(self, id: str, options: Any = None) -> Any:
-        """DELETE api-keys/{id}[?owner=...] with both id and owner
-        URL-encoded. The id truthiness check runs FIRST (before options
+        """DELETE api-keys/{id}[?owner=...] — the id goes through
+        path_segment, the owner is URL-encoded. The id truthiness check runs FIRST (before options
         validation). Success data is always None — the server responds with
         204 or an empty 200 body."""
         try:
@@ -98,7 +98,7 @@ class ApiKeys:
             if validator_response:
                 return self._format_response(400, validator_response, None)
 
-            endpoint = f"api-keys/{percent_encode(id)}"
+            endpoint = endpoint_path("api-keys/{}", id)
             owner = _option(options, "owner")
             if owner is not None:
                 endpoint += f"?owner={percent_encode(owner)}"

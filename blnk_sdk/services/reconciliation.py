@@ -17,6 +17,7 @@ from typing import Any, Callable
 
 from ..logger import handle_error
 from ..multipart import MultipartBody
+from ..uri_utils import endpoint_path
 from ..validators.reconciliation_validator import (
     validate_matcher,
     validate_run_instant_recon_data,
@@ -116,7 +117,9 @@ class Reconciliation:
                 return self._format_response(400, validator_response, None)
 
             return self._request(
-                f"reconciliation/matching-rules/{rule_id}", payload, "PUT"
+                endpoint_path("reconciliation/matching-rules/{}", rule_id),
+                payload,
+                "PUT",
             )
         except Exception as error:
             return handle_error(
@@ -131,7 +134,9 @@ class Reconciliation:
                 return self._format_response(400, "matching rule id is required", None)
 
             return self._request(
-                f"reconciliation/matching-rules/{rule_id}", None, "DELETE"
+                endpoint_path("reconciliation/matching-rules/{}", rule_id),
+                None,
+                "DELETE",
             )
         except Exception as error:
             return handle_error(
@@ -172,6 +177,8 @@ class Reconciliation:
             if not reconciliation_id:
                 return self._format_response(400, "reconciliation id is required", None)
 
-            return self._request(f"reconciliation/{reconciliation_id}", None, "GET")
+            return self._request(
+                endpoint_path("reconciliation/{}", reconciliation_id), None, "GET"
+            )
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "get")

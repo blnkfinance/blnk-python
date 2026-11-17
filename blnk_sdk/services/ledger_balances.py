@@ -19,7 +19,7 @@ from ..coercion import format_number, is_truthy
 from ..logger import handle_error
 from ..types import DTO
 from ..types.list_options import list_endpoint
-from ..uri_utils import percent_encode
+from ..uri_utils import endpoint_path, indicator_path_segment, percent_encode
 from ..validators.ledger_balance import (
     validate_create_balance_snapshot,
     validate_create_ledger_balance,
@@ -73,8 +73,8 @@ class LedgerBalances:
     def get(self, id: str, options: Any = None) -> Any:
         """GET balances/{id}[?from_source=true][&with_queued=true].
 
-        The `id` is never validated (`get("")` performs `GET balances/`) and
-        is NOT URL-encoded.
+        The `id` goes through path_segment: an empty or unsafe id returns
+        400 without a request.
         """
         try:
             if options is not None:
@@ -82,7 +82,7 @@ class LedgerBalances:
                 if error:
                     return self._format_response(400, error, None)
 
-            endpoint = f"balances/{id}"
+            endpoint = endpoint_path("balances/{}", id)
             params: list[str] = []
             if options is not None and is_truthy(_option(options, "from_source")):
                 params.append("from_source=true")
@@ -109,15 +109,20 @@ class LedgerBalances:
 
     def get_by_indicator(self, indicator: str, currency: str) -> Any:
         """GET balances/indicator/{indicator}/currency/{currency} — both
-        segments are URL-encoded."""
+        segments go through indicator_path_segment: percent-encoded, with
+        "/" rejected (400) because Core's route matches on the decoded path
+        and can never serve an indicator containing "/". Look such a
+        balance up by balance_id with `get` instead."""
         try:
             error = validate_get_by_indicator(indicator, currency)
             if error:
                 return self._format_response(400, error, None)
 
             return self._request(
-                f"balances/indicator/{percent_encode(indicator)}"
-                f"/currency/{percent_encode(currency)}",
+                "balances/indicator/"
+                + indicator_path_segment(indicator)
+                + "/currency/"
+                + indicator_path_segment(currency),
                 None,
                 "GET",
             )
@@ -128,7 +133,7 @@ class LedgerBalances:
 
     def update_identity(self, balance_id: str, data: Any) -> Any:
         """PUT balances/{balance_id}/identity — body forwarded unmodified;
-        balance_id NOT URL-encoded."""
+        balance_id validated and encoded by path_segment."""
         try:
             if not balance_id:
                 return self._format_response(400, "balance id is required", None)
@@ -138,7 +143,9 @@ class LedgerBalances:
                 return self._format_response(400, error, None)
 
             return self._request(
-                f"balances/{balance_id}/identity", _payload(data), "PUT"
+                endpoint_path("balances/{}/identity", balance_id),
+                _payload(data),
+                "PUT",
             )
         except Exception as error:
             return handle_error(
@@ -173,7 +180,7 @@ class LedgerBalances:
     def get_at(self, balance_id: str, options: Any) -> Any:
         """GET balances/{balance_id}/at?timestamp={timestamp}
         [&from_source=true] — the timestamp value is URL-encoded verbatim;
-        balance_id is NOT encoded; from_source is unvalidated — any truthy
+        balance_id goes through path_segment; from_source is unvalidated — any truthy
         value appends the flag."""
         try:
             if not balance_id:
@@ -185,7 +192,8 @@ class LedgerBalances:
 
             timestamp = _option(options, "timestamp")
             endpoint = (
-                f"balances/{balance_id}/at?timestamp={percent_encode(timestamp)}"
+                endpoint_path("balances/{}/at", balance_id)
+                + f"?timestamp={percent_encode(timestamp)}"
             )
             if is_truthy(_option(options, "from_source")):
                 endpoint += "&from_source=true"
@@ -195,12 +203,15 @@ class LedgerBalances:
             return handle_error(error, self._logger, self._format_response, "getAt")
 
     def get_lineage(self, balance_id: str) -> Any:
-        """GET balances/{balance_id}/lineage — balance_id NOT URL-encoded."""
+        """GET balances/{balance_id}/lineage — balance_id validated and
+        encoded by path_segment."""
         try:
             if not balance_id:
                 return self._format_response(400, "balance id is required", None)
 
-            return self._request(f"balances/{balance_id}/lineage", None, "GET")
+            return self._request(
+                endpoint_path("balances/{}/lineage", balance_id), None, "GET"
+            )
         except Exception as error:
             return handle_error(
                 error, self._logger, self._format_response, "getLineage"

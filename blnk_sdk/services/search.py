@@ -2,9 +2,9 @@
 
 Endpoint strings have NO leading slash (the client concatenates onto base_url,
 which is guaranteed to end with "/"). No header_options are ever passed
-(3-arg request calls). Path interpolation performs NO URL-encoding — only the
-four literal collection names ever reach the path in practice (the collection
-is validated first).
+(3-arg request calls). The collection is validated against the four literal
+collection names first, and still goes through `endpoint_path` like every
+other caller-supplied path value.
 
 Both `search` and `filter` validate the collection BEFORE the params — when
 both are invalid the collection message wins. The two path shapes differ
@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import Any, Callable, Optional
 
 from ..logger import handle_error
+from ..uri_utils import endpoint_path
 from ..validators.search_validators import (
     validate_filter_params,
     validate_multi_search_params,
@@ -65,7 +66,9 @@ class Search:
             if params_error:
                 return self._format_response(400, params_error, None)
 
-            return self._request(f"search/{collection}", payload, "POST")
+            return self._request(
+                endpoint_path("search/{}", collection), payload, "POST"
+            )
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "search")
 
@@ -99,7 +102,9 @@ class Search:
             if params_error:
                 return self._format_response(400, params_error, None)
 
-            return self._request(f"{collection}/filter", payload, "POST")
+            return self._request(
+                endpoint_path("{}/filter", collection), payload, "POST"
+            )
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "filter")
 

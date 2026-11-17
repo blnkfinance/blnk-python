@@ -50,8 +50,8 @@ def test_delete_deletes_balance_monitors_id() -> None:
     assert response.data["message"] == "BalanceMonitor deleted successfully"
 
 
-def test_delete_url_encodes_monitor_id() -> None:
-    """delete URL-encodes monitor id"""
+def test_delete_rejects_monitor_id_with_slash() -> None:
+    """delete returns 400 and sends nothing for an id containing /"""
     mock_logger = create_mock_logger()
 
     def third_party_request(endpoint, data, method, header_options=None):
@@ -60,11 +60,10 @@ def test_delete_url_encodes_monitor_id() -> None:
     captured_request = CapturingRequest(third_party_request)
     balance_monitor = BalanceMonitor(captured_request, mock_logger, format_response)
 
-    balance_monitor.delete("mon_test/special")
+    response = balance_monitor.delete("mon_test/special")
 
-    assert _args(captured_request) == [
-        ("balance-monitors/mon_test%2Fspecial", None, "DELETE")
-    ]
+    assert captured_request.calls == []
+    assert response.status == 400
 
 
 def test_delete_returns_400_for_empty_id() -> None:

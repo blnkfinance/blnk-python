@@ -263,17 +263,33 @@ def test_delete_url_encodes_id_and_owner() -> None:
     captured_request = CapturingRequest(third_party_request)
     api_keys = ApiKeys(captured_request, mock_logger, format_response)
 
-    response = api_keys.delete("api/key?id=1", {"owner": "merchant a&role=admin"})
+    response = api_keys.delete("api key:1", {"owner": "merchant a&role=admin"})
 
     assert _args(captured_request) == [
         (
-            f"api-keys/{percent_encode('api/key?id=1')}"
+            f"api-keys/{percent_encode('api key:1')}"
             f"?owner={percent_encode('merchant a&role=admin')}",
             None,
             "DELETE",
         )
     ]
     assert response.status == 204
+
+
+def test_delete_rejects_id_that_is_not_one_path_segment() -> None:
+    """delete returns 400 and sends nothing for an id containing / or ?"""
+    mock_logger = create_mock_logger()
+
+    def third_party_request(endpoint, data, method, header_options=None):
+        return ApiResponse(status=204, message="Success", data=None)
+
+    captured_request = CapturingRequest(third_party_request)
+    api_keys = ApiKeys(captured_request, mock_logger, format_response)
+
+    response = api_keys.delete("api/key?id=1", {"owner": "merchant"})
+
+    assert captured_request.calls == []
+    assert response.status == 400
 
 
 def test_delete_returns_400_for_empty_id() -> None:

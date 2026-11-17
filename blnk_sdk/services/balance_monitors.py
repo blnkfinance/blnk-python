@@ -12,7 +12,7 @@ from typing import Any, Callable
 
 from ..logger import handle_error
 from ..string_utils import is_valid_string
-from ..uri_utils import percent_encode
+from ..uri_utils import endpoint_path
 from ..validators.balance_monitors import validate_monitor_data, validate_monitor_id
 
 
@@ -50,10 +50,10 @@ class BalanceMonitor:
             return handle_error(error, self._logger, self._format_response, "create")
 
     def get(self, id: str) -> Any:
-        """GET balance-monitors/{id} — raw id, no validation or encoding;
-        get("") issues a real GET balance-monitors/."""
+        """GET balance-monitors/{id} — id validated and encoded by
+        path_segment (an empty id returns 400 without a request)."""
         try:
-            return self._request(f"balance-monitors/{id}", None, "GET")
+            return self._request(endpoint_path("balance-monitors/{}", id), None, "GET")
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "get")
 
@@ -70,14 +70,14 @@ class BalanceMonitor:
         """GET balance-monitors/balances/{balance_id}.
 
         Distinct from `list()`, which still returns every monitor. The
-        balance_id is percent-encoded so reserved characters cannot alter
-        the path. Empty or whitespace-only ids return 400 without a request.
+        balance_id goes through path_segment so it cannot alter the
+        path. Empty or whitespace-only ids return 400 without a request.
         """
         try:
             if not is_valid_string(balance_id) or balance_id.strip() == "":
                 return self._format_response(400, "balance id is required", None)
             return self._request(
-                f"balance-monitors/balances/{percent_encode(balance_id)}",
+                endpoint_path("balance-monitors/balances/{}", balance_id),
                 None,
                 "GET",
             )
@@ -87,25 +87,27 @@ class BalanceMonitor:
             )
 
     def update(self, id: str, data: Any) -> Any:
-        """PUT balance-monitors/{id} — raw (un-encoded) id, body validated."""
+        """PUT balance-monitors/{id} — id checked by path_segment first, then
+        the body is validated."""
         try:
+            endpoint = endpoint_path("balance-monitors/{}", id)
             payload = _serialize(data)
             validator_response = validate_monitor_data(payload)
             if validator_response:
                 return self._format_response(400, validator_response, None)
-            return self._request(f"balance-monitors/{id}", payload, "PUT")
+            return self._request(endpoint, payload, "PUT")
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "update")
 
     def delete(self, id: str) -> Any:
-        """DELETE balance-monitors/{id} with the id URL-encoded — the only
-        method that validates AND encodes its id."""
+        """DELETE balance-monitors/{id} — id validated and encoded by
+        path_segment."""
         try:
             validator_response = validate_monitor_id(id)
             if validator_response:
                 return self._format_response(400, validator_response, None)
             return self._request(
-                f"balance-monitors/{percent_encode(id)}", None, "DELETE"
+                endpoint_path("balance-monitors/{}", id), None, "DELETE"
             )
         except Exception as error:
             return handle_error(error, self._logger, self._format_response, "delete")
