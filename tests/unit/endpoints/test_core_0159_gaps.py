@@ -320,16 +320,33 @@ def test_update_status_without_reference_omits_it() -> None:
     assert transport.calls[0][2] == {"status": "void"}
 
 
-def test_update_status_rejects_non_string_reference() -> None:
+@pytest.mark.parametrize("status", ["commit", "void"])
+def test_update_status_sends_reference_for_commit_and_void(status: str) -> None:
     transport = RecordingTransport()
     blnk = _client(transport)
 
     response = blnk.transactions.update_status(
-        "txn_1", {"status": "commit", "reference": 7}
+        "txn_1", {"status": status, "reference": f"{status}_ref_1"}
+    )
+
+    assert response.status == 200
+    assert transport.calls[0][2] == {"status": status, "reference": f"{status}_ref_1"}
+
+
+@pytest.mark.parametrize("status", ["commit", "void"])
+@pytest.mark.parametrize("reference", ["", " ", "\t\n", 7, None])
+def test_update_status_rejects_blank_or_non_string_reference(
+    status: str, reference: Any
+) -> None:
+    transport = RecordingTransport()
+    blnk = _client(transport)
+
+    response = blnk.transactions.update_status(
+        "txn_1", {"status": status, "reference": reference}
     )
 
     assert response.status == 400
-    assert response.message == "reference must be a string if provided."
+    assert response.message == "reference must be a non-empty string if provided."
     assert transport.calls == []
 
 
@@ -338,16 +355,17 @@ def test_update_status_rejects_non_string_reference() -> None:
 
 
 def _transaction(**extra: Any) -> CreateTransactions:
-    return CreateTransactions(
-        amount=750,
-        precision=100,
-        reference="ref_1",
-        description="deposit",
-        currency="USD",
-        source="bln_src",
-        destination="bln_dst",
-        **extra,
-    )
+    fields: dict = {
+        "amount": 750,
+        "precision": 100,
+        "reference": "ref_1",
+        "description": "deposit",
+        "currency": "USD",
+        "source": "bln_src",
+        "destination": "bln_dst",
+    }
+    fields.update(extra)
+    return CreateTransactions(**fields)
 
 
 def test_create_transaction_sends_overdraft_limit() -> None:
@@ -371,16 +389,83 @@ def test_create_transaction_without_overdraft_limit_omits_it() -> None:
     assert "overdraft_limit" not in transport.calls[0][2]
 
 
-def test_create_transaction_rejects_non_numeric_overdraft_limit() -> None:
+@pytest.mark.parametrize("limit", [0, 500, 0.5])
+def test_create_transaction_accepts_zero_and_positive_overdraft_limit(limit: Any) -> None:
+    transport = RecordingTransport(status=201)
+    blnk = _client(transport)
+
+    response = blnk.transactions.create(
+        _transaction(allow_overdraft=True, overdraft_limit=limit)
+    )
+
+    assert response.status == 201
+    assert transport.calls[0][2]["overdraft_limit"] == limit
+
+
+@pytest.mark.parametrize(
+    "limit, message",
+    [
+        (-1, "overdraft_limit must be 0 or greater if provided."),
+        (-0.01, "overdraft_limit must be 0 or greater if provided."),
+        (float("nan"), "overdraft_limit must be a finite number if provided."),
+        (float("inf"), "overdraft_limit must be a finite number if provided."),
+        (float("-inf"), "overdraft_limit must be a finite number if provided."),
+        ("500", "overdraft_limit must be a finite number if provided."),
+        (True, "overdraft_limit must be a finite number if provided."),
+        (None, "overdraft_limit must be a finite number if provided."),
+    ],
+)
+def test_create_transaction_rejects_invalid_overdraft_limit(
+    limit: Any, message: str
+) -> None:
     transport = RecordingTransport(status=201)
     blnk = _client(transport)
 
     payload = _transaction().to_dict()
-    payload["overdraft_limit"] = "500"
+    payload["overdraft_limit"] = limit
     response = blnk.transactions.create(payload)
 
     assert response.status == 400
-    assert response.message == "overdraft_limit must be a number if provided."
+    assert response.message == message
+    assert transport.calls == []
+
+
+def test_bulk_create_sends_valid_overdraft_limit_per_item() -> None:
+    transport = RecordingTransport(status=201)
+    blnk = _client(transport)
+
+    response = blnk.transactions.create_bulk({
+        "transactions": [
+            _transaction(reference="ref_a", overdraft_limit=0).to_dict(),
+            _transaction(reference="ref_b", overdraft_limit=250).to_dict(),
+        ]
+    })
+
+    assert response.status == 201
+    items = transport.calls[0][2]["transactions"]
+    assert [item["overdraft_limit"] for item in items] == [0, 250]
+
+
+@pytest.mark.parametrize(
+    "limit, message",
+    [
+        (-1, "overdraft_limit must be 0 or greater if provided."),
+        (float("nan"), "overdraft_limit must be a finite number if provided."),
+        (float("inf"), "overdraft_limit must be a finite number if provided."),
+    ],
+)
+def test_bulk_create_rejects_invalid_overdraft_limit(limit: Any, message: str) -> None:
+    transport = RecordingTransport(status=201)
+    blnk = _client(transport)
+
+    bad = _transaction(reference="ref_b").to_dict()
+    bad["overdraft_limit"] = limit
+    response = blnk.transactions.create_bulk({
+        "transactions": [_transaction(reference="ref_a").to_dict(), bad]
+    })
+
+    assert response.status == 400
+    assert response.message == f"Transaction at index 1: {message}"
     assert transport.calls == []
 
 
