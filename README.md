@@ -139,6 +139,18 @@ monitors_for_balance = blnk.balance_monitor.list_by_balance_id(
 )
 ```
 
+`identity.list()` takes no pagination. Core 0.15.9 reads `limit` and `offset` on
+`GET /identities` only when filter parameters are present, so a plain list returns
+every identity. To page identities, use the filter endpoint with `limit` and `offset`
+in the body (an empty `filters` list matches every identity):
+
+```python
+page = blnk.search.filter(
+    {"filters": [], "limit": 50, "offset": 0, "sort_by": "created_at", "sort_order": "desc"},
+    "identities",
+)
+```
+
 Get a balance with its identity and ledger embedded (`include` is sent as repeated
 `include=` query parameters):
 
