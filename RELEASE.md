@@ -1,5 +1,36 @@
 # Release Notes
 
+## v1.7.0
+
+v1.7.0 targets **Blnk Core 0.15.9** and closes the remaining SDK gaps against
+that release. It adds monitor trigger and partial-update support, idempotency
+references for inflight decisions, overdraft limits, and expanded balance
+responses.
+
+See the [Core changelog](https://docs.blnkfinance.com/changelog/blnk-core).
+
+### Balance monitors
+
+- **`trigger`** — Set `edge` to notify when a condition becomes true, or `level`
+  to notify on every matching transaction. Core defaults to `edge`.
+- **`update_partial`** — Update only the monitor fields provided. This requires
+  Core 0.15.9 or later; use `update` with the full monitor against older Core.
+- Monitor responses include `condition_state` and the precise threshold value.
+
+### Transactions
+
+- **Inflight commit and void** — Pass a `reference` to make a repeated decision
+  idempotent. Blank or padded references are rejected before a request is sent.
+- **`overdraft_limit`** — Set a finite, non-negative limit when creating a
+  transaction.
+
+### Balances and identities
+
+- **`ledger_balances.get`** — Request embedded `identity` and `ledger` data with
+  the `include` option.
+- **Identity listing** — `identity.list()` returns all identities. To page
+  identities, use `search.filter` with `limit` and `offset`.
+
 ## v1.5.0
 
 v1.5.0 targets **Blnk Core 0.15.4**. v1.4.0 shipped Core 0.15.3 parity; this
