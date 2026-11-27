@@ -288,3 +288,7 @@ A Postman collection for the same Core 0.15.3 checks lives at
   and multipart helpers.
 - `tests/` — unit suites per service/validator, `mocks/` fixtures, `integration/` and
   `e2e/` live suites (environment-gated).
+
+## License
+
+Apache 2.0. See [LICENSE](LICENSE).
